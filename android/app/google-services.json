@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "580513459478",
+    "project_id": "smarteco-customer",
+    "storage_bucket": "smarteco-customer.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580513459478:android:6e3f7d6d63810b7ec43437",
+        "android_client_info": {
+          "package_name": "com.idea2reality.smartecocustomer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrxzblK3E8P6Bb5ar4txH1UTvyUS9DddE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
