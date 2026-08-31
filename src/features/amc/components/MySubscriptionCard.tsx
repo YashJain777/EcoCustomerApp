@@ -12,6 +12,7 @@ import { Card } from '@shared/components/atoms/Card';
 import { Badge } from '@shared/components/atoms/Badge';
 import { AppIcon } from '@shared/components/atoms/Icon';
 import { AppText } from '@shared/components/atoms/AppText';
+import { Button } from '@shared/components/atoms/Button';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 import { MyAmcPlan } from '@core/types/amc.types';
 
@@ -176,6 +177,27 @@ export const MySubscriptionCard: React.FC<MySubscriptionCardProps> = ({
           </TouchableOpacity>
         ) : null}
       </View>
+
+      {/* Book / Claim Free Visit CTA */}
+      {isActive ? (
+        <View style={styles.claimActionWrap}>
+          {completedVisits < totalVisits ? (
+            <Button
+              title="Book Free Maintenance Visit"
+              variant="primary"
+              size="medium"
+              onPress={() => onRequestVisit?.(subscription)}
+            />
+          ) : (
+            <Card style={styles.allVisitsUsedCard} padding="xs" variant="flat">
+              <AppIcon name="checkmark-circle" size="xs" color={colors.status.success} />
+              <AppText variant="caption" color="textMuted">
+                All {totalVisits} maintenance visits under this plan have been utilized.
+              </AppText>
+            </Card>
+          )}
+        </View>
+      ) : null}
 
       {/* Expandable Visit History Accordion */}
       {visits.length > 0 ? (
@@ -356,6 +378,16 @@ const makeStyles = (colors: any) =>
       paddingHorizontal: spacing.sm,
       borderRadius: radius.pill,
       gap: 4,
+    },
+    claimActionWrap: {
+      marginTop: spacing.sm,
+    },
+    allVisitsUsedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.background.default,
+      borderRadius: radius.sm,
     },
     visitHistorySection: {
       marginTop: spacing.sm,

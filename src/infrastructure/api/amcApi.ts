@@ -12,6 +12,7 @@ import {
   FetchLocalPlansFilters,
   PurchaseAmcRequest,
   VerifyAmcPaymentRequest,
+  ClaimAmcRequest,
 } from '@core/types/amc.types';
 
 export const amcApi = {
@@ -84,6 +85,18 @@ export const amcApi = {
         '/v1/customers/amc/my-subscriptions'
       );
     }
+  },
+
+  /**
+   * Claim an AMC visit / service request under an active AMC subscription
+   */
+  claimAmc: async (
+    payload: ClaimAmcRequest
+  ): Promise<ApiResponse<any>> => {
+    return await axiosInstance.post<any, ApiResponse<any>>(
+      '/v1/customers/amc/claim',
+      payload
+    );
   },
 
   // Backward-compatibility aliases

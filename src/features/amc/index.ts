@@ -8,3 +8,4 @@ export * from './screens/AmcPlansScreen';
 export * from './components/AmcPlanCard';
 export * from './components/MySubscriptionCard';
 export * from './components/AmcCheckoutSheet';
+export * from './components/AmcClaimSheet';

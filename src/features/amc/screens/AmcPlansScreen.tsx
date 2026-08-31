@@ -36,6 +36,7 @@ import { Select, SelectOption } from '@shared/components/molecules/Select';
 import { AmcPlanCard } from '../components/AmcPlanCard';
 import { MySubscriptionCard } from '../components/MySubscriptionCard';
 import { AmcCheckoutSheet } from '../components/AmcCheckoutSheet';
+import { AmcClaimSheet } from '../components/AmcClaimSheet';
 
 type MainTab = 'my_plans' | 'discover';
 type SubFilter = 'all' | 'active' | 'expired';
@@ -67,6 +68,10 @@ export const AmcPlansScreen = ({ navigation }: any) => {
   // Checkout Sheet
   const [selectedPlanForPurchase, setSelectedPlanForPurchase] = useState<LocalAmcPlan | null>(null);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
+
+  // Claim Visit Sheet
+  const [selectedSubscriptionForClaim, setSelectedSubscriptionForClaim] = useState<MyAmcPlan | null>(null);
+  const [claimVisible, setClaimVisible] = useState(false);
 
   // Fetch Customer Address for Location-Aware AMC Discovery
   useEffect(() => {
@@ -315,7 +320,13 @@ export const AmcPlansScreen = ({ navigation }: any) => {
                 </View>
               }
               renderItem={({ item }) => (
-                <MySubscriptionCard subscription={item} />
+                <MySubscriptionCard
+                  subscription={item}
+                  onRequestVisit={(sub) => {
+                    setSelectedSubscriptionForClaim(sub);
+                    setClaimVisible(true);
+                  }}
+                />
               )}
             />
           )}
@@ -398,6 +409,21 @@ export const AmcPlansScreen = ({ navigation }: any) => {
         plan={selectedPlanForPurchase}
         onClose={() => setCheckoutVisible(false)}
         onPurchaseSuccess={handlePurchaseSuccess}
+      />
+
+      {/* AMC Claim Free Visit Modal */}
+      <AmcClaimSheet
+        visible={claimVisible}
+        subscription={selectedSubscriptionForClaim}
+        onClose={() => {
+          setClaimVisible(false);
+          setSelectedSubscriptionForClaim(null);
+        }}
+        onSuccess={() => {
+          setClaimVisible(false);
+          setSelectedSubscriptionForClaim(null);
+          fetchData();
+        }}
       />
     </ScreenWrapper>
   );

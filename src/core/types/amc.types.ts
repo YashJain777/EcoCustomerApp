@@ -90,3 +90,13 @@ export interface VerifyAmcPaymentRequest {
   purchaseId: string;
   transactionId: string;
 }
+
+export interface ClaimAmcRequest {
+  amcPurchaseId: string;
+  description: string;
+  preferredVisitDate?: string;
+  preferredTimeSlot?: string;
+  serviceAddress?: string;
+  contactPersonName?: string;
+  alternateMobile?: string;
+}
