@@ -6,7 +6,7 @@
  *                 with automatic reverse geocoding into address form fields.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -169,14 +169,25 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
     loadAddresses();
   }, [loadAddresses]);
 
+  const statesCacheRef = useRef<Record<string, SelectOption[]>>({});
+  const citiesCacheRef = useRef<Record<string, SelectOption[]>>({});
+
   const doLoadStates = useCallback(async (cid: string) => {
+    if (!cid) return [];
+    if (statesCacheRef.current[cid]) {
+      setStates(statesCacheRef.current[cid]);
+      return statesCacheRef.current[cid];
+    }
     setStatesLoading(true);
-    setStates([]);
-    setCities([]);
     try {
       const res = await customerApi.getStates(cid);
-      if (res?.data) setStates(res.data.map((s: LocationItem) => ({ label: s.name, value: s.id })));
-      return res?.data || [];
+      if (res?.data) {
+        const formatted = res.data.map((s: LocationItem) => ({ label: s.name, value: s.id }));
+        statesCacheRef.current[cid] = formatted;
+        setStates(formatted);
+        return formatted;
+      }
+      return [];
     } catch (_e) {
       return [];
     } finally {
@@ -185,12 +196,21 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
   }, []);
 
   const doLoadCities = useCallback(async (sid: string) => {
+    if (!sid) return [];
+    if (citiesCacheRef.current[sid]) {
+      setCities(citiesCacheRef.current[sid]);
+      return citiesCacheRef.current[sid];
+    }
     setCitiesLoading(true);
-    setCities([]);
     try {
       const res = await customerApi.getCities(sid);
-      if (res?.data) setCities(res.data.map((c: LocationItem) => ({ label: c.name, value: c.id })));
-      return res?.data || [];
+      if (res?.data) {
+        const formatted = res.data.map((c: LocationItem) => ({ label: c.name, value: c.id }));
+        citiesCacheRef.current[sid] = formatted;
+        setCities(formatted);
+        return formatted;
+      }
+      return [];
     } catch (_e) {
       return [];
     } finally {
@@ -235,13 +255,13 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
         let targetStateId = '';
         if (result.state && rawStates && rawStates.length > 0) {
           const matchedS = rawStates.find(
-            (s: LocationItem) =>
-              s.name.toLowerCase().includes(result.state!.toLowerCase()) ||
-              result.state!.toLowerCase().includes(s.name.toLowerCase())
+            (s: any) =>
+              (s.label || s.name || '').toLowerCase().includes(result.state!.toLowerCase()) ||
+              result.state!.toLowerCase().includes((s.label || s.name || '').toLowerCase())
           );
           if (matchedS) {
-            targetStateId = matchedS.id;
-            setStateId(matchedS.id);
+            targetStateId = (matchedS as SelectOption).value;
+            setStateId(targetStateId);
           }
         }
 
@@ -249,12 +269,12 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
           const rawCities = await doLoadCities(targetStateId);
           if (result.city && rawCities && rawCities.length > 0) {
             const matchedCity = rawCities.find(
-              (c: LocationItem) =>
-                c.name.toLowerCase().includes(result.city!.toLowerCase()) ||
-                result.city!.toLowerCase().includes(c.name.toLowerCase())
+              (c: SelectOption) =>
+                c.label.toLowerCase().includes(result.city!.toLowerCase()) ||
+                result.city!.toLowerCase().includes(c.label.toLowerCase())
             );
             if (matchedCity) {
-              setCityId(matchedCity.id);
+              setCityId((matchedCity as SelectOption).value);
             }
           }
         }

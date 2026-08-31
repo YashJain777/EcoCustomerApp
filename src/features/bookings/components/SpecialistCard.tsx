@@ -118,6 +118,15 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
               </View>
             )}
 
+            {specialist.distanceKm !== undefined && (
+              <View style={styles.distancePill}>
+                <AppIcon name="location-outline" size="xs" color={colors.primary.main} />
+                <AppText variant="caption" color="primary" style={styles.distanceText}>
+                  {specialist.distanceKm} km
+                </AppText>
+              </View>
+            )}
+
             <View style={styles.availabilityPill}>
               <View style={styles.onlineDot} />
               <AppText variant="caption" style={styles.onlineText}>
@@ -251,6 +260,20 @@ const makeStyles = (colors: any) =>
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: radius.xs,
+    },
+    distancePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: colors.primary.light,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.xs,
+    },
+    distanceText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.primary.main,
     },
     availabilityPill: {
       flexDirection: 'row',

@@ -1,29 +1,99 @@
 /**
  * @file amcApi.ts
  * @layer Infrastructure / API
- * @responsibility Annual Maintenance Contract (AMC) plan discovery & purchasing API endpoints.
+ * @responsibility Annual Maintenance Contract (AMC) plan discovery, purchasing, payment verification, and subscription tracking.
  */
 
 import { axiosInstance } from './axiosInstance';
-import { ApiResponse, AmcPlan, BuyAmcRequest, AmcSubscription } from '@core/types/api';
+import { ApiResponse } from '@core/types/api';
+import {
+  LocalAmcPlan,
+  MyAmcPlan,
+  FetchLocalPlansFilters,
+  PurchaseAmcRequest,
+  VerifyAmcPaymentRequest,
+} from '@core/types/amc.types';
 
 export const amcApi = {
-  getPlans: async (): Promise<ApiResponse<AmcPlan[]>> => {
-    return await axiosInstance.get<any, ApiResponse<AmcPlan[]>>(
-      '/v1/customers/amc/plans'
-    );
+  /**
+   * Fetch local AMC plans within proximity radius filtered by GPS and category
+   */
+  getLocalPlans: async (
+    filters?: FetchLocalPlansFilters
+  ): Promise<ApiResponse<LocalAmcPlan[]>> => {
+    try {
+      return await axiosInstance.get<any, ApiResponse<LocalAmcPlan[]>>(
+        '/v1/customers/amc/local-plans',
+        { params: filters }
+      );
+    } catch (_e) {
+      // Fallback endpoint if local-plans is unavailable
+      return await axiosInstance.get<any, ApiResponse<LocalAmcPlan[]>>(
+        '/v1/customers/amc/plans',
+        { params: filters }
+      );
+    }
   },
 
-  buyPlan: async (payload: BuyAmcRequest): Promise<ApiResponse<AmcSubscription>> => {
-    return await axiosInstance.post<any, ApiResponse<AmcSubscription>>(
-      '/v1/customers/amc/buy',
+  /**
+   * Purchase an AMC plan
+   */
+  purchasePlan: async (
+    payload: PurchaseAmcRequest
+  ): Promise<ApiResponse<MyAmcPlan>> => {
+    try {
+      return await axiosInstance.post<any, ApiResponse<MyAmcPlan>>(
+        '/v1/customers/amc/purchase',
+        payload
+      );
+    } catch (_e) {
+      // Fallback endpoint
+      return await axiosInstance.post<any, ApiResponse<MyAmcPlan>>(
+        '/v1/customers/amc/buy',
+        payload
+      );
+    }
+  },
+
+  /**
+   * Verify AMC payment transaction
+   */
+  verifyPayment: async (
+    payload: VerifyAmcPaymentRequest
+  ): Promise<ApiResponse<MyAmcPlan>> => {
+    return await axiosInstance.post<any, ApiResponse<MyAmcPlan>>(
+      '/v1/customers/amc/verify-payment',
       payload
     );
   },
 
-  getMySubscriptions: async (): Promise<ApiResponse<AmcSubscription[]>> => {
-    return await axiosInstance.get<any, ApiResponse<AmcSubscription[]>>(
-      '/v1/customers/amc/my-subscriptions'
-    );
+  /**
+   * Fetch all AMC plans subscribed by the authenticated customer
+   */
+  getMyPlans: async (): Promise<ApiResponse<MyAmcPlan[]>> => {
+    try {
+      const res = await axiosInstance.get<any, ApiResponse<MyAmcPlan[]>>(
+        '/v1/customers/amc/my-plans'
+      );
+      if (res?.data) return res;
+      return await axiosInstance.get<any, ApiResponse<MyAmcPlan[]>>(
+        '/v1/customers/amc/my-subscriptions'
+      );
+    } catch (_e) {
+      return await axiosInstance.get<any, ApiResponse<MyAmcPlan[]>>(
+        '/v1/customers/amc/my-subscriptions'
+      );
+    }
+  },
+
+  // Backward-compatibility aliases
+  getPlans: async (): Promise<ApiResponse<LocalAmcPlan[]>> => {
+    return amcApi.getLocalPlans();
+  },
+  buyPlan: async (payload: PurchaseAmcRequest): Promise<ApiResponse<MyAmcPlan>> => {
+    return amcApi.purchasePlan(payload);
+  },
+  getMySubscriptions: async (): Promise<ApiResponse<MyAmcPlan[]>> => {
+    return amcApi.getMyPlans();
   },
 };

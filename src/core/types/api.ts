@@ -254,6 +254,7 @@ export interface AvailableShop {
   rating?: number;
   serviceArea?: string;
   offeredPrice?: number;
+  distanceKm?: number;
   isAvailable?: boolean;
 }
 
@@ -264,6 +265,7 @@ export interface AvailableMechanic {
   specialization?: string;
   experienceYears?: number;
   offeredPrice?: number;
+  distanceKm?: number;
   isAvailable?: boolean;
 }
 

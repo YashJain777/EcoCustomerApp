@@ -88,13 +88,17 @@ export const bookingApi = {
     serviceTypeId?: string;
     cityId?: string;
     saleItemId?: string;
+    latitude?: number;
+    longitude?: number;
   }): Promise<ApiResponse<AvailableShop[]>> => {
     try {
-      const cleanParams: Record<string, string> = {};
+      const cleanParams: Record<string, any> = {};
       if (params?.categoryId) cleanParams.categoryId = params.categoryId;
       if (params?.serviceTypeId) cleanParams.serviceTypeId = params.serviceTypeId;
       if (params?.cityId) cleanParams.cityId = params.cityId;
       if (params?.saleItemId) cleanParams.saleItemId = params.saleItemId;
+      if (params?.latitude !== undefined && params?.latitude !== null) cleanParams.latitude = params.latitude;
+      if (params?.longitude !== undefined && params?.longitude !== null) cleanParams.longitude = params.longitude;
 
       const res = await axiosInstance.get<any, ApiResponse<any>>(
         '/v1/customers/services/available-shops',
@@ -111,6 +115,7 @@ export const bookingApi = {
             rating: item.rating !== undefined ? Number(item.rating) : undefined,
             serviceArea: item.city || item.serviceArea || undefined,
             offeredPrice: item.offeredPrice !== undefined ? Number(item.offeredPrice) : (item.price !== undefined ? Number(item.price) : undefined),
+            distanceKm: item.distanceKm !== undefined ? Number(item.distanceKm) : undefined,
             isAvailable: item.isAvailable !== undefined ? Boolean(item.isAvailable) : true,
           })),
         };
@@ -231,9 +236,11 @@ export const bookingApi = {
     categoryId?: string;
     serviceTypeId?: string;
     cityId?: string;
+    latitude?: number;
+    longitude?: number;
   }): Promise<ApiResponse<AvailableMechanic[]>> => {
     try {
-      const cleanParams: Record<string, string> = {};
+      const cleanParams: Record<string, any> = {};
       if (params?.categoryId && !params.categoryId.startsWith('cat-')) {
         cleanParams.categoryId = params.categoryId;
       }
@@ -242,6 +249,12 @@ export const bookingApi = {
       }
       if (params?.cityId) {
         cleanParams.cityId = params.cityId;
+      }
+      if (params?.latitude !== undefined && params?.latitude !== null) {
+        cleanParams.latitude = params.latitude;
+      }
+      if (params?.longitude !== undefined && params?.longitude !== null) {
+        cleanParams.longitude = params.longitude;
       }
 
       const res = await axiosInstance.get<any, ApiResponse<any>>(
@@ -260,6 +273,7 @@ export const bookingApi = {
             specialization: m.specialization || m.designation || 'Certified Technician',
             experienceYears: m.experienceYears !== undefined ? Number(m.experienceYears) : undefined,
             offeredPrice: m.offeredPrice !== undefined ? Number(m.offeredPrice) : (m.price !== undefined ? Number(m.price) : undefined),
+            distanceKm: m.distanceKm !== undefined ? Number(m.distanceKm) : undefined,
             isAvailable: m.isAvailable !== undefined ? Boolean(m.isAvailable) : true,
           })),
         };

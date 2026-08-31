@@ -220,13 +220,24 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
   }, []);
 
   // 3. Fetch Specialists (Freelancers & Shops) when Category & ServiceType are selected
-  const fetchSpecialists = useCallback(async (categoryId: string, serviceTypeId?: string) => {
+  const fetchSpecialists = useCallback(async (categoryId: string, serviceTypeId?: string, customAddress?: CustomerAddress | null) => {
     setLoadingSpecialists(true);
     setErrorMessage(null);
     try {
+      const targetAddr = customAddress !== undefined ? customAddress : selectedAddress;
       const [freeRes, shopRes] = await Promise.allSettled([
-        bookingApi.getAvailableFreelancers({ categoryId, serviceTypeId }),
-        bookingApi.getAvailableShops({ categoryId, serviceTypeId }),
+        bookingApi.getAvailableFreelancers({
+          categoryId,
+          serviceTypeId,
+          latitude: targetAddr?.latitude,
+          longitude: targetAddr?.longitude,
+        }),
+        bookingApi.getAvailableShops({
+          categoryId,
+          serviceTypeId,
+          latitude: targetAddr?.latitude,
+          longitude: targetAddr?.longitude,
+        }),
       ]);
 
       if (freeRes.status === 'fulfilled' && freeRes.value?.success && Array.isArray(freeRes.value.data)) {
@@ -247,7 +258,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
     } finally {
       setLoadingSpecialists(false);
     }
-  }, [specialistType]);
+  }, [specialistType, selectedAddress]);
 
   // Step 1: User Selects Category
   const handleSelectCategory = (cat: ProductCategory) => {

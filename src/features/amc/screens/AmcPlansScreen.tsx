@@ -1,54 +1,135 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+/**
+ * @file AmcPlansScreen.tsx
+ * @feature AMC / Screens
+ * @responsibility Comprehensive Annual Maintenance Contract (AMC) management and discovery screen.
+ *                 Allows customers to track active protection plans, view logged maintenance visits,
+ *                 and discover + purchase verified local AMC plans by appliance category.
+ *                 Adheres strictly to DESIGN_SYSTEM.md standards.
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+} from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { SegmentedTabs } from '@shared/components/molecules/SegmentedTabs';
-import { Badge } from '@shared/components/atoms/Badge';
 import { Header } from '@shared/components/molecules/Header';
-import { Card } from '@shared/components/atoms/Card';
+import { Badge } from '@shared/components/atoms/Badge';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { EmptyState } from '@shared/components/molecules/EmptyState';
+import { Card } from '@shared/components/atoms/Card';
+import { Button } from '@shared/components/atoms/Button';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 import { amcApi } from '@infrastructure/api/amcApi';
-import { AmcSubscription, AmcPlan } from '@core/types/api';
+import { bookingApi } from '@infrastructure/api/bookingApi';
+import { customerApi } from '@infrastructure/api/customerApi';
+import { LocalAmcPlan, MyAmcPlan } from '@core/types/amc.types';
+import { ProductCategory } from '@core/types/api';
+import { Select, SelectOption } from '@shared/components/molecules/Select';
+import { AmcPlanCard } from '../components/AmcPlanCard';
+import { MySubscriptionCard } from '../components/MySubscriptionCard';
+import { AmcCheckoutSheet } from '../components/AmcCheckoutSheet';
+
+type MainTab = 'my_plans' | 'discover';
+type SubFilter = 'all' | 'active' | 'expired';
 
 export const AmcPlansScreen = ({ navigation }: any) => {
-  const [subscriptions, setSubscriptions] = useState<AmcSubscription[]>([]);
-  const [availablePlans, setAvailablePlans] = useState<AmcPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [buying, setBuying] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('active');
-
   const { theme } = useTheme();
   const colors = theme.colors;
-  const styles = React.useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  // Main Tab State
+  const [mainTab, setMainTab] = useState<MainTab>('my_plans');
+  const [subFilter, setSubFilter] = useState<SubFilter>('active');
+
+  // Data States
+  const [myPlans, setMyPlans] = useState<MyAmcPlan[]>([]);
+  const [localPlans, setLocalPlans] = useState<LocalAmcPlan[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+
+  // Location info
+  const [userLocationLabel, setUserLocationLabel] = useState<string>('My Area (10 km radius)');
+  const [userCoordinates, setUserCoordinates] = useState<{ lat?: number; lng?: number }>({});
+
+  // Loading & Refreshing
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Checkout Sheet
+  const [selectedPlanForPurchase, setSelectedPlanForPurchase] = useState<LocalAmcPlan | null>(null);
+  const [checkoutVisible, setCheckoutVisible] = useState(false);
+
+  // Fetch Customer Address for Location-Aware AMC Discovery
+  useEffect(() => {
+    customerApi.getAddresses()
+      .then((res) => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          const defaultAddr = res.data.find((a) => a.isDefault) || res.data[0];
+          if (defaultAddr.cityName) {
+            setUserLocationLabel(`${defaultAddr.cityName} (Within 15 km)`);
+          }
+          if (defaultAddr.latitude && defaultAddr.longitude) {
+            setUserCoordinates({ lat: defaultAddr.latitude, lng: defaultAddr.longitude });
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch Appliance Categories for Filter Strip
+  useEffect(() => {
+    bookingApi.getCategories({ limit: 20 })
+      .then((res) => {
+        if (res?.success && res.data) {
+          const items = Array.isArray(res.data) ? res.data : (res.data as any).items || [];
+          setCategories(items);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch All AMC Data
   const fetchData = useCallback(async () => {
     try {
       setErrorMsg(null);
-      const [subRes, planRes] = await Promise.allSettled([
-        amcApi.getMySubscriptions(),
-        amcApi.getPlans(),
+      const [myRes, localRes] = await Promise.allSettled([
+        amcApi.getMyPlans(),
+        amcApi.getLocalPlans({
+          lat: userCoordinates.lat,
+          lng: userCoordinates.lng,
+          categoryId: selectedCategoryId || undefined,
+        }),
       ]);
 
-      if (subRes.status === 'fulfilled' && subRes.value?.success && Array.isArray(subRes.value.data)) {
-        setSubscriptions(subRes.value.data);
+      if (myRes.status === 'fulfilled' && (myRes.value?.success || myRes.value?.data)) {
+        const raw = myRes.value.data || (myRes.value as any);
+        setMyPlans(Array.isArray(raw) ? raw : []);
       } else {
-        setSubscriptions([]);
+        setMyPlans([]);
       }
 
-      if (planRes.status === 'fulfilled' && planRes.value?.success && Array.isArray(planRes.value.data)) {
-        setAvailablePlans(planRes.value.data);
+      if (localRes.status === 'fulfilled' && (localRes.value?.success || localRes.value?.data)) {
+        const raw = localRes.value.data || (localRes.value as any);
+        setLocalPlans(Array.isArray(raw) ? raw : []);
+      } else {
+        setLocalPlans([]);
       }
     } catch (err: any) {
-      setErrorMsg(err?.error?.message || 'Failed to fetch AMC subscriptions');
-      setSubscriptions([]);
+      setErrorMsg(err?.error?.message || err?.message || 'Failed to load AMC data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [userCoordinates.lat, userCoordinates.lng, selectedCategoryId]);
 
   useEffect(() => {
     fetchData();
@@ -59,159 +140,265 @@ export const AmcPlansScreen = ({ navigation }: any) => {
     fetchData();
   };
 
-  const activeCount = subscriptions.filter((s) => s.status?.toUpperCase() === 'ACTIVE').length;
-  const expiredCount = subscriptions.filter((s) => s.status?.toUpperCase() === 'EXPIRED').length;
+  // Filtered Subscriptions
+  const activePlansCount = useMemo(
+    () => myPlans.filter((p) => p.status === 'ACTIVE').length,
+    [myPlans]
+  );
+  const expiredPlansCount = useMemo(
+    () => myPlans.filter((p) => p.status === 'EXPIRED').length,
+    [myPlans]
+  );
 
-  const filteredSubs = subscriptions.filter((s) => {
-    const status = s.status?.toUpperCase();
-    if (activeTab === 'active') return status === 'ACTIVE';
-    if (activeTab === 'expired') return status === 'EXPIRED';
-    return true;
-  });
+  const filteredMyPlans = useMemo(() => {
+    if (subFilter === 'active') return myPlans.filter((p) => p.status === 'ACTIVE');
+    if (subFilter === 'expired') return myPlans.filter((p) => p.status === 'EXPIRED');
+    return myPlans;
+  }, [myPlans, subFilter]);
 
-  const handleBuyPlan = async () => {
-    if (availablePlans.length === 0) {
-      Alert.alert('AMC Plans', 'No new AMC plans are available right now. Please check back later.');
-      return;
-    }
+  const categoryOptions: SelectOption[] = useMemo(() => {
+    const allOption: SelectOption = {
+      label: 'All Appliance Categories',
+      value: '',
+      sublabel: 'View all protection plans across all appliance categories',
+      icon: 'grid-outline',
+    };
+    const catOptions: SelectOption[] = categories.map((cat) => ({
+      label: cat.name,
+      value: cat.id,
+      sublabel: cat.description || `AMC protection plans for ${cat.name}`,
+      icon: 'construct-outline',
+    }));
+    return [allOption, ...catOptions];
+  }, [categories]);
 
-    const planToBuy = availablePlans[0];
-    Alert.alert(
-      'Purchase Protection Plan',
-      `Would you like to buy ${planToBuy.name} for ₹${planToBuy.price}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm & Buy',
-          onPress: async () => {
-            setBuying(true);
-            try {
-              const res = await amcApi.buyPlan({ amcPlanId: planToBuy.id });
-              if (res?.success) {
-                Alert.alert('AMC Subscription Active! 🛡️', `You have successfully subscribed to ${planToBuy.name}.`);
-                fetchData();
-              } else {
-                Alert.alert('Purchase Failed', res?.error?.message || 'Could not process AMC subscription.');
-              }
-            } catch (err: any) {
-              Alert.alert('Purchase Error', err?.error?.message || err?.message || 'Could not process purchase');
-            } finally {
-              setBuying(false);
-            }
-          },
-        },
-      ]
-    );
+  // Open Checkout Sheet
+  const handleOpenSubscribe = (plan: LocalAmcPlan) => {
+    setSelectedPlanForPurchase(plan);
+    setCheckoutVisible(true);
+  };
+
+  // Handle Successful Purchase
+  const handlePurchaseSuccess = (purchased: MyAmcPlan) => {
+    setMainTab('my_plans');
+    setSubFilter('active');
+    fetchData();
   };
 
   return (
     <ScreenWrapper style={styles.container}>
       <Header
-        title="AMC & Subscriptions"
-        subtitle="Annual maintenance contract plans"
+        title="AMC & Protection Plans"
+        subtitle="Annual maintenance from certified specialists"
         onBackPress={() => navigation.goBack()}
       />
 
+      {/* Main Mode Segmented Tabs */}
       <View style={styles.tabWrapper}>
         <SegmentedTabs
           tabs={[
-            { id: 'active', label: 'Active', count: activeCount },
-            { id: 'expired', label: 'Expired', count: expiredCount },
+            { id: 'my_plans', label: 'My Protection Plans', count: myPlans.length },
+            { id: 'discover', label: 'Discover Local Plans', count: localPlans.length },
           ]}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          activeTab={mainTab}
+          onSelectTab={(tabId) => setMainTab(tabId as MainTab)}
         />
       </View>
 
-      {errorMsg && (
+      {errorMsg ? (
         <View style={styles.errorBanner}>
           <AppIcon name="alert-circle-outline" size="sm" color={colors.status.danger} />
-          <Text style={styles.errorText}>{errorMsg}</Text>
-          <TouchableOpacity onPress={fetchData}>
-            <Text style={styles.retryText}>Retry</Text>
+          <AppText variant="caption" color="textSecondary" style={styles.errorText}>
+            {errorMsg}
+          </AppText>
+          <TouchableOpacity onPress={fetchData} activeOpacity={0.7}>
+            <AppText variant="labelSm" color="primary">
+              Retry
+            </AppText>
           </TouchableOpacity>
         </View>
-      )}
+      ) : null}
 
-      {loading && !refreshing ? (
-        <View style={styles.loaderCenter}>
-          <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={styles.loadingText}>Loading AMC subscriptions...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredSubs}
-          keyExtractor={(item, index) => (item.id ? `${item.id}-${index}` : `amc-${index}`)}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={8}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary.main]}
-              tintColor={colors.primary.main}
-            />
-          }
-          ListEmptyComponent={
-            <EmptyState
-              iconName="shield-outline"
-              title="No AMC Plans Found"
-              description="You don't have any AMC subscriptions in this category."
-            />
-          }
-          renderItem={({ item }) => {
-            const isExpired = item.status?.toUpperCase() === 'EXPIRED';
-            const startDateStr = item.startDate ? new Date(item.startDate).toLocaleDateString('en-IN') : 'N/A';
-            const endDateStr = item.endDate ? new Date(item.endDate).toLocaleDateString('en-IN') : 'N/A';
+      {/* Mode 1: My Protection Plans */}
+      {mainTab === 'my_plans' && (
+        <View style={styles.flex1}>
+          {/* Sub-Filter Pills (Active / Expired) */}
+          <View style={styles.subFilterRow}>
+            <TouchableOpacity
+              style={[
+                styles.subFilterChip,
+                subFilter === 'active' && styles.subFilterChipActive,
+              ]}
+              onPress={() => setSubFilter('active')}
+              activeOpacity={0.8}
+            >
+              <AppText
+                variant="labelSm"
+                style={subFilter === 'active' ? styles.subFilterTextActive : styles.subFilterText}
+              >
+                Active ({activePlansCount})
+              </AppText>
+            </TouchableOpacity>
 
-            return (
-              <Card style={styles.amcCard} padding="lg">
-                <View style={styles.cardHeader}>
-                  <Badge
-                    label={isExpired ? 'EXPIRED AMC' : 'ACTIVE AMC'}
-                    variant={isExpired ? 'danger' : 'success'}
+            <TouchableOpacity
+              style={[
+                styles.subFilterChip,
+                subFilter === 'expired' && styles.subFilterChipActive,
+              ]}
+              onPress={() => setSubFilter('expired')}
+              activeOpacity={0.8}
+            >
+              <AppText
+                variant="labelSm"
+                style={subFilter === 'expired' ? styles.subFilterTextActive : styles.subFilterText}
+              >
+                Expired ({expiredPlansCount})
+              </AppText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.subFilterChip,
+                subFilter === 'all' && styles.subFilterChipActive,
+              ]}
+              onPress={() => setSubFilter('all')}
+              activeOpacity={0.8}
+            >
+              <AppText
+                variant="labelSm"
+                style={subFilter === 'all' ? styles.subFilterTextActive : styles.subFilterText}
+              >
+                All ({myPlans.length})
+              </AppText>
+            </TouchableOpacity>
+          </View>
+
+          {loading && !refreshing ? (
+            <View style={styles.loaderCenter}>
+              <ActivityIndicator size="large" color={colors.primary.main} />
+              <AppText variant="bodySm" color="textMuted" style={styles.loadingText}>
+                Loading your protection subscriptions...
+              </AppText>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredMyPlans}
+              keyExtractor={(item, index) => item.id || `my-amc-${index}`}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={[colors.primary.main]}
+                  tintColor={colors.primary.main}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <EmptyState
+                    iconName="shield-outline"
+                    title={
+                      subFilter === 'active'
+                        ? 'No Active AMC Subscriptions'
+                        : 'No AMC Plans in this Filter'
+                    }
+                    description="Protect your appliances against costly breakdowns with certified annual maintenance."
                   />
-                  <View style={styles.shieldBadge}>
-                    <AppIcon name="shield-checkmark" size="md" color={colors.status.warning} />
-                  </View>
+                  <Button
+                    title="Explore Nearby AMC Plans →"
+                    variant="primary"
+                    size="medium"
+                    onPress={() => setMainTab('discover')}
+                    style={styles.emptyCta}
+                  />
                 </View>
-
-                <Text style={styles.planName}>{item.planName || item.amcPlan?.name || 'Gold AMC Plan'}</Text>
-                <Text style={styles.applianceText}>{item.applianceName || 'Registered Appliance'}</Text>
-                <Text style={styles.metaText}>
-                  Valid: {startDateStr} — {endDateStr}
-                </Text>
-                <Text style={styles.amountText}>
-                  Subscription Amount: ₹{item.amount || item.amcPlan?.price || 2499}
-                </Text>
-
-                <TouchableOpacity style={styles.benefitsBtn} activeOpacity={0.7}>
-                  <Text style={styles.benefitsBtnText}>View Included Services & Benefits</Text>
-                  <AppIcon name="chevron-forward" size="xs" color={colors.cta.main} />
-                </TouchableOpacity>
-              </Card>
-            );
-          }}
-        />
+              }
+              renderItem={({ item }) => (
+                <MySubscriptionCard subscription={item} />
+              )}
+            />
+          )}
+        </View>
       )}
 
-      <TouchableOpacity
-        style={styles.buyNewBtn}
-        activeOpacity={0.85}
-        onPress={handleBuyPlan}
-        disabled={buying}
-      >
-        {buying ? (
-          <ActivityIndicator size="small" color={colors.cta.main} style={styles.btnIcon} />
-        ) : (
-          <AppIcon name="shield-checkmark-outline" size="sm" color={colors.cta.main} style={styles.btnIcon} />
-        )}
-        <Text style={styles.buyNewBtnText}>{buying ? 'Processing...' : 'Buy New AMC Protection Plan'}</Text>
-      </TouchableOpacity>
+      {/* Mode 2: Discover Local Plans */}
+      {mainTab === 'discover' && (
+        <View style={styles.flex1}>
+          {/* Location Radius Header Bar */}
+          <View style={styles.locationBar}>
+            <View style={styles.locationLeft}>
+              <AppIcon name="location" size="xs" color={colors.primary.main} />
+              <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                {userLocationLabel}
+              </AppText>
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('SavedAddressesScreen')}
+              activeOpacity={0.7}
+            >
+              <AppText variant="caption" color="primary" style={styles.changeLocText}>
+                Change
+              </AppText>
+            </TouchableOpacity>
+          </View>
+
+          {/* Appliance Category Filter Dropdown */}
+          <Select
+            label="Filter by Appliance Category"
+            placeholder="Select appliance category..."
+            value={selectedCategoryId}
+            options={categoryOptions}
+            onSelect={(opt) => setSelectedCategoryId(opt.value)}
+            leftIcon={<AppIcon name="grid-outline" size="sm" color={colors.primary.main} />}
+            searchable
+            searchPlaceholder="Search appliance categories..."
+            style={styles.categoryDropdown}
+          />
+
+          {loading && !refreshing ? (
+            <View style={styles.loaderCenter}>
+              <ActivityIndicator size="large" color={colors.primary.main} />
+              <AppText variant="bodySm" color="textMuted" style={styles.loadingText}>
+                Discovering local AMC protection plans...
+              </AppText>
+            </View>
+          ) : (
+            <FlatList
+              data={localPlans}
+              keyExtractor={(item, index) => item.id || `local-amc-${index}`}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={[colors.primary.main]}
+                  tintColor={colors.primary.main}
+                />
+              }
+              ListEmptyComponent={
+                <EmptyState
+                  iconName="search-outline"
+                  title="No Local AMC Plans Found"
+                  description="There are currently no active maintenance plans for this category in your area. Try changing the category or location."
+                />
+              }
+              renderItem={({ item }) => (
+                <AmcPlanCard plan={item} onSubscribe={handleOpenSubscribe} />
+              )}
+            />
+          )}
+        </View>
+      )}
+
+      {/* AMC Checkout Bottom Sheet Modal */}
+      <AmcCheckoutSheet
+        visible={checkoutVisible}
+        plan={selectedPlanForPurchase}
+        onClose={() => setCheckoutVisible(false)}
+        onPurchaseSuccess={handlePurchaseSuccess}
+      />
     </ScreenWrapper>
   );
 };
@@ -219,131 +406,93 @@ export const AmcPlansScreen = ({ navigation }: any) => {
 const makeStyles = (colors: any) =>
   StyleSheet.create({
     container: {
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
     },
-    iconActionBtn: {
-      width: 40,
-      height: 40,
+    flex1: {
+      flex: 1,
+    },
+    tabWrapper: {
+      marginVertical: spacing.xs + 2,
+    },
+    subFilterRow: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      marginBottom: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    subFilterChip: {
+      paddingVertical: 6,
+      paddingHorizontal: spacing.md,
       borderRadius: radius.pill,
-      backgroundColor: colors.background.paper,
-      alignItems: 'center',
-      justifyContent: 'center',
+      backgroundColor: colors.background.default,
       borderWidth: 1,
       borderColor: colors.border.light,
     },
-    tabWrapper: {
-      marginVertical: spacing.sm,
+    subFilterChipActive: {
+      backgroundColor: colors.primary.main,
+      borderColor: colors.primary.main,
+    },
+    subFilterText: {
+      color: colors.text.secondary,
+    },
+    subFilterTextActive: {
+      color: colors.text.inverse,
+      fontWeight: '700',
+    },
+    locationBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.background.default,
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.sm,
+      marginVertical: spacing.xs,
+    },
+    locationLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      flex: 1,
+    },
+    changeLocText: {
+      fontWeight: '700',
+      marginLeft: spacing.xs,
+    },
+    categoryDropdown: {
+      marginTop: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    loaderCenter: {
+      paddingVertical: spacing.xxl,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    loadingText: {
+      marginTop: spacing.sm,
+    },
+    listContent: {
+      paddingBottom: spacing.xxl,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+    },
+    emptyCta: {
+      marginTop: spacing.md,
+      minWidth: 220,
     },
     errorBanner: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.status.dangerBg,
-      padding: spacing.sm + 2,
+      padding: spacing.sm,
       borderRadius: radius.sm,
-      marginBottom: spacing.sm,
+      marginBottom: spacing.xs,
       gap: spacing.xs,
     },
     errorText: {
+      color: colors.status.danger,
       flex: 1,
-      fontSize: 12,
-      color: colors.status.danger,
-    },
-    retryText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.status.danger,
-    },
-    loaderCenter: {
-      paddingVertical: spacing.xxl,
-      alignItems: 'center',
-    },
-    loadingText: {
-      fontSize: 13,
-      color: colors.text.muted,
-      marginTop: spacing.sm,
-    },
-    listContent: {
-      paddingBottom: 90,
-    },
-    amcCard: {
-      marginBottom: spacing.md,
-      borderRadius: radius.lg,
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: spacing.sm,
-    },
-    shieldBadge: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.sm,
-      backgroundColor: colors.status.warningBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    planName: {
-      fontSize: 18,
-      fontWeight: '800',
-      color: colors.text.primary,
-    },
-    applianceText: {
-      fontSize: 14,
-      color: colors.text.secondary,
-      marginTop: 2,
-      fontWeight: '500',
-    },
-    metaText: {
-      fontSize: 12,
-      color: colors.text.muted,
-      marginTop: 4,
-    },
-    amountText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: colors.text.primary,
-      marginTop: spacing.xs,
-    },
-    benefitsBtn: {
-      marginTop: spacing.md,
-      backgroundColor: colors.background.default,
-      borderRadius: radius.sm,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderWidth: 1,
-      borderColor: colors.cta.main + '40',
-    },
-    benefitsBtnText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.cta.main,
-    },
-    buyNewBtn: {
-      position: 'absolute',
-      bottom: spacing.md,
-      left: spacing.lg,
-      right: spacing.lg,
-      backgroundColor: colors.background.paper,
-      borderRadius: radius.lg,
-      paddingVertical: spacing.sm + 4,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1.5,
-      borderColor: colors.cta.main,
-      ...shadows.ctaGlow,
-    },
-    btnIcon: {
-      marginRight: 8,
-    },
-    buyNewBtnText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: colors.cta.main,
     },
   });
-

@@ -28,6 +28,7 @@ import { Select, SelectOption } from '@shared/components/molecules/Select';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 import { bookingApi } from '@infrastructure/api/bookingApi';
 import { productApi } from '@infrastructure/api/productApi';
+import { customerApi, CustomerAddress } from '@infrastructure/api/customerApi';
 import { CustomerProduct, AvailableShop, AvailableMechanic } from '@core/types/api';
 
 interface ComplaintTypeItem {
@@ -80,6 +81,7 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
   
   // Data list states
   const [products, setProducts] = useState<CustomerProduct[]>([]);
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [shops, setShops] = useState<AvailableShop[]>([]);
   const [freelancers, setFreelancers] = useState<AvailableMechanic[]>([]);
   const [complaintTypes, setComplaintTypes] = useState<ComplaintTypeItem[]>([]);
@@ -87,6 +89,7 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
 
   // Selected IDs
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [selectedShopId, setSelectedShopId] = useState<string>('');
   const [selectedFreelancerId, setSelectedFreelancerId] = useState<string>('');
   const [selectedComplaintId, setSelectedComplaintId] = useState<string>('');
@@ -110,17 +113,29 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     const fetchAllData = async () => {
       try {
         setLoadingData(true);
-        const [prodRes, shopRes, compRes, servRes] = await Promise.allSettled([
+        const [prodRes, shopRes, compRes, servRes, addrRes] = await Promise.allSettled([
           productApi.getMyProducts(),
           bookingApi.getAvailableShops(),
           bookingApi.getComplaintTypes(),
           bookingApi.getServiceTypes(),
+          customerApi.getAddresses(),
         ]);
 
         if (!isMounted) return;
 
         let initialCategoryId: string | undefined;
         let initialServiceTypeId: string | undefined;
+        let initialAddress: CustomerAddress | undefined;
+
+        // Addresses
+        if (addrRes.status === 'fulfilled' && addrRes.value?.success && Array.isArray(addrRes.value.data) && addrRes.value.data.length > 0) {
+          const addrList = addrRes.value.data;
+          setAddresses(addrList);
+          initialAddress = addrList.find((a) => a.isDefault) || addrList[0];
+          if (initialAddress?.id) {
+            setSelectedAddressId(initialAddress.id);
+          }
+        }
 
         // Products
         if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data) && prodRes.value.data.length > 0) {
@@ -162,11 +177,13 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
           }
         }
 
-        // Available Freelancers with categoryId and/or serviceTypeId (strictly matching API doc)
+        // Available Freelancers with categoryId, serviceTypeId & initial address coordinates
         if (initialCategoryId || initialServiceTypeId) {
           const freeRes = await bookingApi.getAvailableFreelancers({
             categoryId: initialCategoryId,
             serviceTypeId: initialServiceTypeId,
+            latitude: initialAddress?.latitude,
+            longitude: initialAddress?.longitude,
           });
           if (isMounted && freeRes?.success && Array.isArray(freeRes.data) && freeRes.data.length > 0) {
             setFreelancers(freeRes.data);
@@ -186,9 +203,10 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     };
   }, []);
 
-  // Derived Active Product & Complaint
+  // Derived Active Product, Complaint & Selected Address
   const selectedProduct = useMemo(() => products.find((p) => p.id === selectedProductId), [products, selectedProductId]);
   const selectedComplaint = useMemo(() => complaintTypes.find((c) => c.id === selectedComplaintId), [complaintTypes, selectedComplaintId]);
+  const selectedAddress = useMemo(() => addresses.find((a) => a.id === selectedAddressId), [addresses, selectedAddressId]);
 
   // 1. Refetch Service Types when selected product / category changes
   useEffect(() => {
@@ -214,7 +232,7 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     };
   }, [selectedProduct?.categoryId, selectedProductId]);
 
-  // 2. Refetch Freelancers dynamically according to categoryId and selected serviceTypeId
+  // 2. Refetch Freelancers dynamically according to categoryId, selected serviceTypeId & selected address coordinates
   useEffect(() => {
     let isSubscribed = true;
     const categoryId = selectedProduct?.categoryId;
@@ -225,6 +243,9 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     bookingApi.getAvailableFreelancers({
       categoryId: categoryId || undefined,
       serviceTypeId: serviceTypeId || undefined,
+      cityId: selectedAddress?.cityId || undefined,
+      latitude: selectedAddress?.latitude,
+      longitude: selectedAddress?.longitude,
     })
       .then((freeRes) => {
         if (isSubscribed && freeRes?.success && Array.isArray(freeRes.data)) {
@@ -244,7 +265,57 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     return () => {
       isSubscribed = false;
     };
-  }, [selectedProduct?.categoryId, selectedServiceTypeId]);
+  }, [
+    selectedProduct?.categoryId,
+    selectedServiceTypeId,
+    selectedAddressId,
+    selectedAddress?.latitude,
+    selectedAddress?.longitude,
+    selectedAddress?.cityId,
+  ]);
+
+  // 3. Refetch Shops dynamically according to categoryId, selected serviceTypeId & selected address coordinates
+  useEffect(() => {
+    let isSubscribed = true;
+    const categoryId = selectedProduct?.categoryId;
+    const serviceTypeId = selectedServiceTypeId;
+    const saleItemId = selectedProductId || selectedProduct?.id;
+
+    bookingApi.getAvailableShops({
+      categoryId: categoryId || undefined,
+      serviceTypeId: serviceTypeId || undefined,
+      saleItemId: saleItemId || undefined,
+      cityId: selectedAddress?.cityId || undefined,
+      latitude: selectedAddress?.latitude,
+      longitude: selectedAddress?.longitude,
+    })
+      .then((shopRes) => {
+        if (isSubscribed && shopRes?.success && Array.isArray(shopRes.data)) {
+          setShops(shopRes.data);
+          if (shopRes.data.length > 0) {
+            setSelectedShopId((prev) => {
+              const exists = shopRes.data.some((s) => s.id === prev);
+              return exists ? prev : shopRes.data[0].id;
+            });
+          } else {
+            setSelectedShopId('');
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [
+    selectedProduct?.categoryId,
+    selectedServiceTypeId,
+    selectedProductId,
+    selectedAddressId,
+    selectedAddress?.latitude,
+    selectedAddress?.longitude,
+    selectedAddress?.cityId,
+  ]);
 
   // Warranty Check Logic
   const isUnderWarranty = useMemo(() => {
@@ -327,31 +398,80 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
   const productOptions: SelectOption[] = useMemo(() => {
     return products.map((p) => {
       const brand = (p.brandName || p.brand || '').trim();
-      const model = (p.productName || p.modelNumber || '').trim();
+      const modelOrName = (p.productName || p.modelNumber || '').trim();
       const category = (p.categoryName || '').trim();
+      const qr = (p.qrCode || '').trim();
 
-      const titleParts = [brand, model].filter(Boolean).join(' • ');
+      const displayTitle =
+        [brand, modelOrName].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ') ||
+        modelOrName ||
+        p.id;
 
       const subDetails = [
         category ? `Category: ${category}` : null,
-        p.invoiceNumber ? `Invoice: ${p.invoiceNumber}` : null,
-        p.qrCode ? `QR: ${p.qrCode}` : null,
+        qr ? `QR: ${qr}` : null,
       ].filter(Boolean).join(' • ');
 
       return {
-        label: titleParts || p.productName || p.id,
+        label: displayTitle,
         value: p.id,
         sublabel: subDetails || undefined,
+        icon: 'cube-outline',
       };
     });
   }, [products]);
 
+  const addressOptions: SelectOption[] = useMemo(() => {
+    return addresses.map((addr) => {
+      const type = (addr.addressType || 'HOME').toUpperCase();
+      const typeIcon =
+        type === 'WORK'
+          ? 'briefcase-outline'
+          : type === 'OFFICE'
+          ? 'business-outline'
+          : type === 'OTHER'
+          ? 'location-outline'
+          : 'home-outline';
+
+      const title = addr.label ? `${addr.label} (${type})` : `${type} Address`;
+      const isDef = addr.isDefault ? ' • Default ⭐' : '';
+
+      const detailComponents = [
+        addr.houseNo,
+        addr.street,
+        addr.landmark ? `Near ${addr.landmark}` : null,
+        addr.cityName || addr.cityId,
+        addr.pinCode ? `PIN: ${addr.pinCode}` : null,
+      ].filter(Boolean);
+
+      const addressDetails =
+        detailComponents.length > 0
+          ? detailComponents.join(', ')
+          : addr.address || 'Saved delivery location';
+
+      return {
+        label: `${title}${isDef}`,
+        value: addr.id || '',
+        sublabel: addressDetails,
+        icon: typeIcon,
+      };
+    });
+  }, [addresses]);
+
   const shopOptions: SelectOption[] = useMemo(() => {
-    return shops.map((s) => ({
-      label: s.shopName,
-      value: s.id,
-      sublabel: isUnderWarranty ? 'Authorized Selling Shopkeeper • ₹0 (Warranty Claim)' : s.offeredPrice !== undefined ? `Standard Visit Fee: ₹${s.offeredPrice}` : undefined,
-    }));
+    return shops.map((s) => {
+      const distText = s.distanceKm !== undefined ? ` • 📍 ${s.distanceKm} km` : '';
+      return {
+        label: s.shopName,
+        value: s.id,
+        sublabel: isUnderWarranty
+          ? `Authorized Selling Shopkeeper • ₹0 (Warranty Claim)${distText}`
+          : s.offeredPrice !== undefined
+          ? `Standard Visit Fee: ₹${s.offeredPrice}${distText}`
+          : undefined,
+        icon: 'storefront-outline',
+      };
+    });
   }, [shops, isUnderWarranty]);
 
   const freelancerOptions: SelectOption[] = useMemo(() => {
@@ -359,11 +479,13 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
       const ratingLabel = f.rating !== undefined && f.rating > 0 ? `⭐ ${f.rating}` : '⭐ New';
       const specText = f.specialization ? f.specialization : 'Freelance Specialist';
       const priceText = f.offeredPrice !== undefined ? ` • Visit Fee: ₹${f.offeredPrice}` : '';
+      const distText = f.distanceKm !== undefined ? ` • 📍 ${f.distanceKm} km away` : '';
 
       return {
         label: `${f.name} (${ratingLabel})`,
         value: f.id,
-        sublabel: `${specText}${priceText}`,
+        sublabel: `${specText}${priceText}${distText}`,
+        icon: 'person-outline',
       };
     });
   }, [freelancers]);
@@ -373,6 +495,7 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
       label: st.name,
       value: st.id,
       sublabel: st.description || undefined,
+      icon: 'construct-outline',
     }));
   }, [serviceTypes]);
 
@@ -684,7 +807,53 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
               </View>
             )}
 
-            {/* 2. Provider Dropdown (Shopkeeper or Freelancer) */}
+            {/* 2. Service Delivery Address Dropdown */}
+            {addresses.length > 0 ? (
+              <View style={styles.marginTopMd}>
+                <Select
+                  label="Service Delivery Address *"
+                  placeholder="Select service delivery address"
+                  value={selectedAddressId}
+                  options={addressOptions}
+                  onSelect={(opt) => setSelectedAddressId(opt.value)}
+                  leftIcon={<AppIcon name="location-outline" size="sm" color={colors.primary.main} />}
+                  searchable
+                  searchPlaceholder="Search saved addresses..."
+                />
+                <TouchableOpacity
+                  style={styles.manageAddressRow}
+                  onPress={() => navigation.navigate('SavedAddressesScreen')}
+                  activeOpacity={0.7}
+                >
+                  <AppIcon name="add-circle-outline" size="xs" color={colors.primary.main} />
+                  <AppText variant="caption" color="primary" style={styles.manageAddressText}>
+                    Add / Manage Saved Addresses
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Card style={styles.noAddressCard} padding="md" variant="outlined">
+                <View style={styles.noAddressRow}>
+                  <AppIcon name="location-outline" size="sm" color={colors.status.warning} />
+                  <View style={styles.flex1Ml8}>
+                    <AppText variant="labelMd" color="textPrimary">No Saved Address Found</AppText>
+                    <AppText variant="caption" color="textSecondary">
+                      Please add a service address to discover nearby mechanics.
+                    </AppText>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('SavedAddressesScreen')}
+                    activeOpacity={0.7}
+                  >
+                    <AppText variant="caption" color="primary" style={styles.boldText}>
+                      + Add
+                    </AppText>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            )}
+
+            {/* 3. Provider Dropdown (Shopkeeper or Freelancer) */}
             {bookingMode === 'SHOPKEEPER' ? (
               <Select
                 label={isUnderWarranty ? "Authorized Selling Shopkeeper (Locked by Warranty Policy) *" : "Service Provider Shopkeeper *"}
@@ -1248,5 +1417,29 @@ const makeStyles = (colors: any) =>
     externalPromoLink: {
       fontWeight: '700',
       marginTop: 2,
+    },
+    manageAddressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 6,
+      alignSelf: 'flex-end',
+      paddingHorizontal: 2,
+    },
+    manageAddressText: {
+      fontWeight: '600',
+    },
+    noAddressCard: {
+      marginTop: spacing.md,
+      borderColor: colors.status.warning,
+      backgroundColor: colors.status.warningBg,
+    },
+    noAddressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    flex1Ml8: {
+      flex: 1,
+      marginLeft: spacing.sm,
     },
   });
