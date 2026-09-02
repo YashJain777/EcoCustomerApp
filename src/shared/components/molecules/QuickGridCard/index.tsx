@@ -10,6 +10,7 @@ export interface QuickGridCardProps {
   badgeCount?: number;
   iconColor?: string;
   bgColor?: string;
+  style?: any;
   onPress: () => void;
 }
 
@@ -19,6 +20,7 @@ export const QuickGridCard: React.FC<QuickGridCardProps> = ({
   badgeCount,
   iconColor,
   bgColor,
+  style,
   onPress,
 }) => {
   const { theme } = useTheme();
@@ -28,7 +30,7 @@ export const QuickGridCard: React.FC<QuickGridCardProps> = ({
   const resolvedIconColor = iconColor || colors.primary.main;
   const resolvedBgColor = bgColor || colors.primary.light;
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity style={[styles.card, style]} activeOpacity={0.7} onPress={onPress}>
       <View style={[styles.iconContainer, { backgroundColor: resolvedBgColor }]}>
         <AppIcon name={iconName} size="md" color={resolvedIconColor} />
         {badgeCount !== undefined && badgeCount > 0 && (

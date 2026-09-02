@@ -336,12 +336,15 @@ export interface ServicePartReplaced {
 export interface ServiceVisitLog {
   id: string;
   createdAt?: string;
+  visitDate?: string;
   status?: string;
   notes?: string | null;
   cost?: number;
+  otpCode?: string | null;
   otpVerified?: boolean;
   mechanicName?: string;
   partsReplaced?: ServicePartReplaced[];
+  parts?: ServicePartReplaced[];
 }
 
 export interface ServiceInvoiceBreakdown {
@@ -354,16 +357,41 @@ export interface ServiceInvoiceBreakdown {
   paymentStatus: 'PAID' | 'DUE' | 'PENDING' | 'CANCELLED' | string;
 }
 
+export interface ComplaintJobMechanic {
+  id: string;
+  fullName: string;
+  mobile?: string | null;
+}
+
+export interface ComplaintServiceJob {
+  id: string;
+  status: 'PENDING_ACCEPTANCE' | 'ACCEPTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | string;
+  rating?: number | null;
+  feedback?: string | null;
+  scheduledDate?: string | null;
+  completedAt?: string | null;
+  mechanic?: ComplaintJobMechanic | null;
+  proposedMechanic?: ComplaintJobMechanic | null;
+  visits?: ServiceVisitLog[];
+}
+
 export interface ComplaintTicket {
   id: string;
   ticketNumber?: string;
+  customerId?: string;
+  shopkeeperId?: string;
+  saleItemId?: string | null;
+  complaintTypeId?: string;
+  serviceTypeId?: string;
   title?: string;
   appliance?: string;
   productName?: string;
+  categoryName?: string | null;
+  brandName?: string | null;
   date?: string;
   createdAt?: string;
   updatedAt?: string;
-  status: 'OPEN' | 'PENDING_ACCEPTANCE' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'COMPLETED' | 'CANCELLED' | string;
+  status: 'OPEN' | 'PENDING' | 'PENDING_ACCEPTANCE' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'COMPLETED' | 'CLOSED' | 'CANCELLED' | string;
   priority?: string;
   description?: string;
   cleanDescription?: string;
@@ -374,8 +402,16 @@ export interface ComplaintTicket {
   agreedPrice?: number | null;
   assignedMechanicName?: string | null;
   shopkeeperName?: string;
-  complaintType?: { id: string; name: string };
-  serviceType?: { id: string; name: string; categoryId?: string };
+  type?: 'COMPLAINT' | 'INSTALLATION' | string;
+  otpCode?: string | null;
+  complaintType?: { id: string; name: string } | null;
+  serviceType?: {
+    id: string;
+    name: string;
+    categoryId?: string;
+    category?: { id: string; name: string } | null;
+  } | null;
+  serviceJobs?: ComplaintServiceJob[];
   shopkeeper?: {
     id: string;
     shopName?: string;
@@ -388,11 +424,15 @@ export interface ComplaintTicket {
     id: string;
     fullName?: string | null;
     mobile?: string | null;
+    email?: string | null;
     address?: string | null;
+    pinCode?: string | null;
   } | null;
   saleItem?: {
     id?: string;
     productName?: string;
+    categoryName?: string | null;
+    brandName?: string | null;
     productModel?: any;
     warranty?: any;
   } | null;

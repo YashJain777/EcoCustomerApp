@@ -130,39 +130,6 @@ export const SettingsScreen = ({ navigation }: any) => {
             <AppIcon name="chevron-forward" size="xs" color={colors.text.muted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} activeOpacity={0.7}>
-            <View style={styles.itemLeft}>
-              <View style={[styles.itemIconBg, { backgroundColor: colors.category.indigoBg }]}>
-                <AppIcon name="globe-outline" size="sm" color={colors.category.indigoIcon} />
-              </View>
-              <AppText variant="bodyMd" color="textPrimary" style={styles.itemTitle}>
-                App Language
-              </AppText>
-            </View>
-            <View style={styles.itemRight}>
-              <AppText variant="bodySm" color="textSecondary" style={styles.valueText}>
-                English
-              </AppText>
-              <AppIcon name="chevron-forward" size="xs" color={colors.text.muted} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingItem}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('MyReviewsScreen')}
-          >
-            <View style={styles.itemLeft}>
-              <View style={[styles.itemIconBg, { backgroundColor: colors.category.amberBg }]}>
-                <AppIcon name="star-outline" size="sm" color={colors.category.amberIcon} />
-              </View>
-              <AppText variant="bodyMd" color="textPrimary" style={styles.itemTitle}>
-                My Ratings & Reviews
-              </AppText>
-            </View>
-            <AppIcon name="chevron-forward" size="xs" color={colors.text.muted} />
-          </TouchableOpacity>
-
           <View style={[styles.settingItem, styles.lastItem]}>
             <View style={styles.itemLeft}>
               <View style={[styles.itemIconBg, { backgroundColor: colors.category.purpleBg }]}>

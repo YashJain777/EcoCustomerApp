@@ -1,3 +1,9 @@
+/**
+ * @file ComplaintDetailScreen.tsx
+ * @feature Complaints / Screens
+ * @responsibility Detailed view for Service Tickets and Installation Requests with technician allocation, dealer, customer, appliance specifications, timeline stepper, and price estimate / invoice breakdown.
+ */
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -12,7 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
-import { Badge } from '@shared/components/atoms/Badge';
+import { Badge, type BadgeVariant } from '@shared/components/atoms/Badge';
 import { Button } from '@shared/components/atoms/Button';
 import { Header } from '@shared/components/molecules/Header';
 import { Card } from '@shared/components/atoms/Card';
@@ -22,6 +28,7 @@ import { TimelineStepper } from '@shared/components/molecules/TimelineStepper';
 import { spacing, radius, useTheme } from '@theme/index';
 import { complaintApi } from '@infrastructure/api/complaintApi';
 import { bookingApi } from '@infrastructure/api/bookingApi';
+import type { ComplaintTicket, ComplaintServiceJob } from '@core/types/api';
 
 const RESCHEDULE_OPTIONS = [
   {
@@ -140,23 +147,25 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
  */
 export const parseServiceTitles = (
   rawTitle?: string,
-  brandName?: string,
-  productName?: string,
-  categoryName?: string
+  brandName?: string | null,
+  productName?: string | null,
+  categoryName?: string | null,
+  serviceTypeName?: string | null
 ) => {
   const brand = (brandName || '').trim();
   const product = (productName || '').trim();
   const cat = (categoryName || '').trim();
+  const service = (serviceTypeName || '').trim();
 
   let appliance = '';
-  if (brand || product) {
-    if (!brand) appliance = product;
-    else if (!product) appliance = brand;
-    else if (product.toLowerCase().startsWith(brand.toLowerCase())) {
-      appliance = product;
-    } else {
-      appliance = `${brand} • ${product}`;
-    }
+  if (brand && product && !product.toLowerCase().startsWith(brand.toLowerCase())) {
+    appliance = `${brand} • ${product}`;
+  } else if (product && product !== 'Home Appliance') {
+    appliance = product;
+  } else if (brand) {
+    appliance = brand;
+  } else if (cat) {
+    appliance = cat;
   }
 
   let issueTitle = (rawTitle || '').trim();
@@ -166,17 +175,20 @@ export const parseServiceTitles = (
     if (parts.length > 1) {
       issueTitle = parts[0].trim();
       if (!appliance) {
-        appliance = parts.slice(1).join(' - ').trim();
+        const titleAppliance = parts.slice(1).join(' - ').trim();
+        if (titleAppliance && titleAppliance !== 'Home Appliance') {
+          appliance = titleAppliance;
+        }
       }
     }
   }
 
   if (!appliance) {
-    appliance = cat || 'Home Appliance';
+    appliance = cat || (service ? `${service} Unit` : 'Home Appliance');
   }
 
   if (!issueTitle) {
-    issueTitle = 'Service Request';
+    issueTitle = service || 'Service Request';
   }
 
   return { issueTitle, appliance };
@@ -188,10 +200,10 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors, insets.bottom), [colors, insets.bottom]);
 
-  const initialTicket = route.params?.ticket?.raw || route.params?.ticket || {};
+  const initialTicket: Partial<ComplaintTicket> = route.params?.ticket?.raw || route.params?.ticket || {};
   const ticketId = route.params?.ticketId || route.params?.id || initialTicket.id;
 
-  const [ticketData, setTicketData] = useState<any>(initialTicket);
+  const [ticketData, setTicketData] = useState<Partial<ComplaintTicket>>(initialTicket);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -232,8 +244,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
   const isInstallation =
     rawType === 'INSTALLATION' ||
     rawTicketNo.startsWith('INS-') ||
-    String(ticketData?.title || '').toLowerCase().includes('installation') ||
-    String(ticketData?.issueTypeName || '').toLowerCase() === 'installation';
+    String(ticketData?.title || '').toLowerCase().includes('installation');
 
   const type: 'INSTALLATION' | 'COMPLAINT' = isInstallation ? 'INSTALLATION' : 'COMPLAINT';
 
@@ -247,10 +258,11 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     ticketData?.title,
     ticketData?.brandName || ticketData?.saleItem?.brandName,
     ticketData?.productName || ticketData?.saleItem?.productName,
-    ticketData?.categoryName || ticketData?.saleItem?.categoryName
+    ticketData?.categoryName || ticketData?.saleItem?.categoryName,
+    ticketData?.serviceType?.name
   );
 
-  const status = (ticketData?.status || 'PENDING').toUpperCase();
+  const status = (ticketData?.status || 'OPEN').toUpperCase();
   const isResolved = status === 'RESOLVED' || status === 'COMPLETED' || status === 'CLOSED';
   const isClosed = isResolved || status === 'CANCELLED';
   const isPending = status === 'PENDING' || status === 'OPEN' || status === 'PENDING_ACCEPTANCE';
@@ -264,49 +276,48 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
   const shopkeeper = ticketData?.shopkeeper;
   const complaintType = ticketData?.complaintType;
   const serviceType = ticketData?.serviceType;
+  const saleItem = ticketData?.saleItem;
 
-  // 3. Visits & Replaced Parts
-  const serviceJobs = Array.isArray(ticketData?.serviceJobs) ? ticketData.serviceJobs : [];
-  const primaryJob = serviceJobs.length > 0 ? serviceJobs[0] : null;
+  // 3. Service Jobs, Visits & Parts
+  const serviceJobs: ComplaintServiceJob[] = Array.isArray(ticketData?.serviceJobs) ? ticketData.serviceJobs : [];
+  const primaryJob: ComplaintServiceJob | null = serviceJobs.length > 0 ? serviceJobs[0] : null;
 
   const visitsList =
     Array.isArray(ticketData?.visits) && ticketData.visits.length > 0
       ? ticketData.visits
-      : serviceJobs.flatMap((j: any) => j.visits || []);
+      : serviceJobs.flatMap((j) => j.visits || []);
 
   const partsList: any[] = visitsList.flatMap((v: any) => v.parts || v.partsReplaced || []);
 
   // 4. Technician Information
   const mechanicObj =
     primaryJob?.mechanic ||
-    visitsList?.[0]?.mechanic?.user ||
-    visitsList?.[0]?.mechanic ||
+    primaryJob?.proposedMechanic ||
+    (visitsList?.[0] as any)?.mechanic?.user ||
+    (visitsList?.[0] as any)?.mechanic ||
     null;
 
   const mechanicName =
     ticketData?.assignedMechanicName ||
     mechanicObj?.fullName ||
-    primaryJob?.mechanic?.fullName ||
     null;
 
   const mechanicMobile =
     mechanicObj?.mobile ||
-    primaryJob?.mechanic?.mobile ||
     null;
 
-  const mechanicDesignation =
-    visitsList?.[0]?.mechanic?.designation ||
-    'Certified Service Field Technician';
+  const mechanicJobStatus = primaryJob?.status || null;
 
   // 5. Warranty & Pricing Breakdown
-  const isWarranty = ticketData?.isWarranty === true || ticketData?.warrantyType === 'WARRANTY';
-  const baseLaborCharge = Number(ticketData?.pricing?.agreedPrice ?? ticketData?.agreedPrice ?? 0);
+  const isWarranty = ticketData?.isWarranty === true || ticketData?.warrantyType === 'WARRANTY' || ticketData?.pricing?.isFreeService === true;
+  const agreedPriceVal = ticketData?.pricing?.agreedPrice ?? ticketData?.agreedPrice ?? null;
+  const baseLaborCharge = agreedPriceVal !== null && agreedPriceVal !== undefined ? Number(agreedPriceVal) : null;
   const partsSubtotal = partsList.reduce(
     (sum: number, p: any) => sum + Number(p.quantity || 1) * Number(p.cost || 0),
     0
   );
 
-  const calculatedTotal = isWarranty ? 0 : baseLaborCharge + partsSubtotal;
+  const calculatedTotal = isWarranty ? 0 : (baseLaborCharge !== null ? baseLaborCharge + partsSubtotal : partsSubtotal);
   const finalTotalAmount = ticketData?.invoice?.totalInvoiceAmount
     ? Number(ticketData.invoice.totalInvoiceAmount)
     : calculatedTotal;
@@ -330,7 +341,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
             setCancelling(true);
             try {
               await complaintApi.cancelComplaint(ticketId);
-              setTicketData((prev: any) => ({ ...prev, status: 'CANCELLED' }));
+              setTicketData((prev) => ({ ...prev, status: 'CANCELLED' }));
               Alert.alert('Cancelled', 'Request has been cancelled successfully.');
             } catch (err: any) {
               Alert.alert('Action Failed', err?.error?.message || err?.message || 'Could not cancel request');
@@ -352,7 +363,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
           setReopening(true);
           try {
             await complaintApi.reopenComplaint(ticketId);
-            setTicketData((prev: any) => ({ ...prev, status: 'OPEN' }));
+            setTicketData((prev) => ({ ...prev, status: 'OPEN' }));
             Alert.alert('Reopened', 'Your request has been reopened for follow-up inspection.');
           } catch (err: any) {
             Alert.alert('Action Failed', err?.error?.message || err?.message || 'Could not reopen request');
@@ -371,7 +382,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
       const newScheduledIso = slot.getIso();
       const res = await bookingApi.rescheduleBooking(ticketId, newScheduledIso);
       if (res?.success || res?.data) {
-        setTicketData((prev: any) => ({ ...prev, preferredSlot: newScheduledIso }));
+        setTicketData((prev) => ({ ...prev, preferredSlot: newScheduledIso }));
         Alert.alert('Appointment Rescheduled! 📅', `Appointment moved to ${slot.label}.`);
       } else {
         Alert.alert('Reschedule Failed', res?.error?.message || 'Failed to reschedule appointment');
@@ -393,6 +404,20 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const handleEmail = (email?: string | null) => {
+    if (!email) return;
+    Linking.openURL(`mailto:${email.trim()}`).catch(() => {
+      Alert.alert('Email Error', 'Could not open email client.');
+    });
+  };
+
+  const statusBadgeVariant: BadgeVariant = useMemo(() => {
+    if (isResolved) return 'success';
+    if (isCancelled) return 'danger';
+    if (status === 'IN_PROGRESS' || status === 'ASSIGNED') return 'info';
+    return 'warning';
+  }, [status, isResolved, isCancelled]);
+
   const steps = [
     {
       title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
@@ -403,15 +428,15 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
       title: mechanicName
         ? `Technician Assigned (${mechanicName})`
         : shopkeeper?.shopName
-        ? `Assigned to ${shopkeeper.shopName}`
+        ? `Service Partner: ${shopkeeper.shopName}`
         : 'Service Engineer Assignment',
-      time: mechanicName ? 'Assigned' : isClosed ? 'Completed' : 'Pending',
+      time: mechanicName ? (mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned' : 'Confirmed') : isClosed ? 'Completed' : 'Pending',
       isCompleted: Boolean(mechanicName) || isClosed,
       isActive: isPending && !mechanicName,
     },
     {
-      title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Repair',
-      time: visitsList.length > 0 ? formatStandardDate(visitsList[0].createdAt || visitsList[0].visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isClosed ? 'Completed' : '-'),
+      title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Service',
+      time: visitsList.length > 0 ? formatStandardDate((visitsList[0] as any).createdAt || (visitsList[0] as any).visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isClosed ? 'Completed' : '-'),
       isCompleted: visitsList.length > 0 || isClosed,
       isActive: status === 'IN_PROGRESS',
     },
@@ -483,49 +508,38 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                 </View>
               </View>
 
-              <Badge
-                label={status}
-                variant={
-                  status === 'COMPLETED' || status === 'RESOLVED' || status === 'CLOSED'
-                    ? 'success'
-                    : isCancelled
-                    ? 'danger'
-                    : status === 'IN_PROGRESS' || status === 'ASSIGNED'
-                    ? 'info'
-                    : 'warning'
-                }
-              />
+              <Badge label={status.replace('_', ' ')} variant={statusBadgeVariant} />
             </View>
 
             <AppText variant="headingLg" color="textPrimary" style={styles.titleText}>
-              {issueTitle}
+              {serviceType?.name || issueTitle}
             </AppText>
 
             <View style={styles.pillRow}>
+              {serviceType?.name ? (
+                <View style={styles.servicePill}>
+                  <AppIcon name="build-outline" size="xs" color={colors.primary.main} />
+                  <AppText variant="caption" color="primary" style={styles.pillText}>
+                    {serviceType.name}
+                  </AppText>
+                </View>
+              ) : null}
+
+              {complaintType?.name ? (
+                <View style={styles.issuePill}>
+                  <AppIcon name="alert-circle-outline" size="xs" color={colors.status.warning} />
+                  <AppText variant="caption" style={styles.warningPillText}>
+                    {complaintType.name}
+                  </AppText>
+                </View>
+              ) : null}
+
               <View style={styles.appliancePill}>
                 <AppIcon name="cube-outline" size="xs" color={colors.text.secondary} />
                 <AppText variant="caption" color="textSecondary" style={styles.pillText}>
                   {appliance}
                 </AppText>
               </View>
-
-              {complaintType?.name ? (
-                <View style={styles.issuePill}>
-                  <AppIcon name="alert-circle-outline" size="xs" color={colors.status.warning} />
-                  <AppText variant="caption" color="textSecondary" style={styles.pillText}>
-                    {complaintType.name}
-                  </AppText>
-                </View>
-              ) : null}
-
-              {serviceType?.name ? (
-                <View style={styles.servicePill}>
-                  <AppIcon name="build-outline" size="xs" color={colors.primary.main} />
-                  <AppText variant="caption" color="textSecondary" style={styles.pillText}>
-                    {serviceType.name} Service
-                  </AppText>
-                </View>
-              ) : null}
             </View>
 
             <View style={styles.divider} />
@@ -538,12 +552,12 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                   {type === 'INSTALLATION' ? 'Installation Notes' : 'Issue Description'}
                 </AppText>
                 <AppText variant="bodyMd" color="textPrimary" style={styles.descriptionText}>
-                  {ticketData?.cleanDescription || ticketData?.description || issueTitle || 'Standard Inspection & Service Request'}
+                  {ticketData?.cleanDescription || ticketData?.description || ticketData?.rawDescription || issueTitle}
                 </AppText>
               </View>
             </View>
 
-            {/* Preferred / Scheduled Appointment Slot */}
+            {/* Preferred / Scheduled Appointment Slot or Creation Date */}
             {preferredSlotFormatted ? (
               <View style={styles.infoRow}>
                 <AppIcon name="calendar-outline" size="sm" color={colors.category.orangeIcon} />
@@ -579,10 +593,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
               />
               <AppText
                 variant="labelSm"
-                style={[
-                  styles.warrantyText,
-                  { color: isWarranty ? colors.category.emeraldIcon : colors.text.muted },
-                ]}
+                style={isWarranty ? styles.warrantyCoveredText : styles.warrantyNonCoveredText}
               >
                 {isWarranty
                   ? 'Covered under Active Warranty (Free Labor & Spares)'
@@ -616,6 +627,59 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
             </Card>
           )}
 
+          {/* Equipment & Registered Appliance Details Card (if saleItem is linked) */}
+          {saleItem && (
+            <>
+              <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
+                Appliance & Equipment Details
+              </AppText>
+              <Card style={styles.applianceCard} padding="md">
+                <View style={styles.applianceRow}>
+                  <View style={styles.applianceIconThumb}>
+                    <AppIcon name="cube-outline" size="sm" color={colors.primary.main} />
+                  </View>
+                  <View style={styles.applianceInfo}>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.boldText} numberOfLines={1}>
+                      {saleItem.productName || appliance}
+                    </AppText>
+                    <View style={styles.applianceMetaRow}>
+                      {saleItem.brandName ? (
+                        <AppText variant="caption" color="textSecondary">
+                          Brand: {saleItem.brandName}
+                        </AppText>
+                      ) : null}
+                      {saleItem.productModel?.name ? (
+                        <AppText variant="caption" color="textSecondary">
+                          • Model: {saleItem.productModel.name}
+                        </AppText>
+                      ) : null}
+                      {saleItem.categoryName ? (
+                        <AppText variant="caption" color="textMuted">
+                          • {saleItem.categoryName}
+                        </AppText>
+                      ) : null}
+                    </View>
+                    {saleItem.warranty && (
+                      <View style={styles.applianceWarrantyChip}>
+                        <AppIcon
+                          name={saleItem.warranty.active ? 'shield-checkmark' : 'shield-outline'}
+                          size="xs"
+                          color={saleItem.warranty.active ? colors.category.emeraldIcon : colors.status.warning}
+                        />
+                        <AppText
+                          variant="caption"
+                          style={saleItem.warranty.active ? styles.warrantyCoveredText : styles.warrantyNonCoveredText}
+                        >
+                          {saleItem.warranty.active ? 'Active Manufacturer Warranty' : 'Expired / Non-Warranty Unit'}
+                        </AppText>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </Card>
+            </>
+          )}
+
           {/* Assigned Technician & Dealer Cards Section */}
           {(mechanicName || isPending || shopkeeper?.shopName) && (
             <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
@@ -634,10 +698,13 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                     <AppText variant="headingSm" color="textPrimary" style={styles.boldText} numberOfLines={1}>
                       {mechanicName}
                     </AppText>
-                    <Badge label="Assigned Technician" variant="info" />
+                    <Badge
+                      label={mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned (Pending Accept)' : 'Assigned Technician'}
+                      variant={mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'warning' : 'info'}
+                    />
                   </View>
                   <AppText variant="caption" color="textSecondary" style={styles.techDesignation} numberOfLines={1}>
-                    {mechanicDesignation}
+                    Certified Service Field Technician
                   </AppText>
                   {mechanicMobile ? (
                     <TouchableOpacity
@@ -657,7 +724,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
           ) : isPending ? (
             <Card style={styles.technicianCard} padding="md">
               <View style={styles.techRow}>
-                <View style={[styles.techAvatar, { backgroundColor: colors.neutral[100] }]}>
+                <View style={styles.pendingTechAvatar}>
                   <AppIcon name="time-outline" size="md" color={colors.status.warning} />
                 </View>
                 <View style={styles.techInfo}>
@@ -687,20 +754,34 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                       Owner: {shopkeeper.ownerName}
                     </AppText>
                   ) : null}
-                  {shopkeeper.mobile ? (
-                    <TouchableOpacity
-                      style={styles.dealerPhoneButton}
-                      activeOpacity={0.7}
-                      onPress={() => handleCall(shopkeeper.mobile)}
-                    >
-                      <AppIcon name="call" size="xs" color={colors.category.indigoIcon} />
-                      <AppText variant="caption" style={styles.dealerPhoneText}>
-                        {shopkeeper.mobile}
-                      </AppText>
-                    </TouchableOpacity>
-                  ) : null}
+                  <View style={styles.contactActionRow}>
+                    {shopkeeper.mobile ? (
+                      <TouchableOpacity
+                        style={styles.dealerPhoneButton}
+                        activeOpacity={0.7}
+                        onPress={() => handleCall(shopkeeper.mobile)}
+                      >
+                        <AppIcon name="call" size="xs" color={colors.category.indigoIcon} />
+                        <AppText variant="caption" style={styles.dealerPhoneText}>
+                          {shopkeeper.mobile}
+                        </AppText>
+                      </TouchableOpacity>
+                    ) : null}
+                    {shopkeeper.email ? (
+                      <TouchableOpacity
+                        style={styles.dealerEmailButton}
+                        activeOpacity={0.7}
+                        onPress={() => handleEmail(shopkeeper.email)}
+                      >
+                        <AppIcon name="mail-outline" size="xs" color={colors.text.secondary} />
+                        <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                          {shopkeeper.email}
+                        </AppText>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                   {shopkeeper.gstNumber ? (
-                    <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                    <AppText variant="caption" color="textMuted" numberOfLines={1} style={styles.metaSpacing}>
                       GSTIN: {shopkeeper.gstNumber}
                     </AppText>
                   ) : null}
@@ -724,18 +805,32 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                     <AppText variant="labelMd" color="textPrimary" style={styles.boldText} numberOfLines={1}>
                       {customer.fullName || 'Customer'}
                     </AppText>
-                    {customer.mobile ? (
-                      <TouchableOpacity
-                        style={styles.phoneButton}
-                        activeOpacity={0.7}
-                        onPress={() => handleCall(customer.mobile)}
-                      >
-                        <AppIcon name="call" size="xs" color={colors.primary.main} />
-                        <AppText variant="caption" color="primary" style={styles.contactPhoneText}>
-                          {customer.mobile}
-                        </AppText>
-                      </TouchableOpacity>
-                    ) : null}
+                    <View style={styles.contactActionRow}>
+                      {customer.mobile ? (
+                        <TouchableOpacity
+                          style={styles.phoneButton}
+                          activeOpacity={0.7}
+                          onPress={() => handleCall(customer.mobile)}
+                        >
+                          <AppIcon name="call" size="xs" color={colors.primary.main} />
+                          <AppText variant="caption" color="primary" style={styles.contactPhoneText}>
+                            {customer.mobile}
+                          </AppText>
+                        </TouchableOpacity>
+                      ) : null}
+                      {customer.email ? (
+                        <TouchableOpacity
+                          style={styles.customerEmailButton}
+                          activeOpacity={0.7}
+                          onPress={() => handleEmail(customer.email)}
+                        >
+                          <AppIcon name="mail-outline" size="xs" color={colors.text.secondary} />
+                          <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                            {customer.email}
+                          </AppText>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                     {customer.address ? (
                       <AppText variant="bodySm" color="textSecondary" style={styles.addressText}>
                         {customer.address} {customer.pinCode ? `- ${customer.pinCode}` : ''}
@@ -754,6 +849,107 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
           <Card style={styles.timelineCard} padding="md">
             <TimelineStepper steps={steps} />
           </Card>
+
+          {/* Pre-Completion Price Estimate & Terms Card (Shown while service is Active / Open / In-Progress) */}
+          {!isResolved && !isCancelled && (
+            <>
+              <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
+                Estimated Service Charges
+              </AppText>
+              <Card style={styles.estimateCard} padding="md">
+                <View style={styles.invoiceHeaderRow}>
+                  <View style={styles.invoiceHeaderLeft}>
+                    <View style={styles.estimateIconThumb}>
+                      <AppIcon name="wallet-outline" size="sm" color={colors.primary.main} />
+                    </View>
+                    <View style={styles.invoiceTitleWrap}>
+                      <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                        Booking Price Estimate
+                      </AppText>
+                      <AppText variant="caption" color="textMuted">
+                        Payable upon service completion
+                      </AppText>
+                    </View>
+                  </View>
+                  <Badge label="ESTIMATE" variant="neutral" />
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Visiting / Fixed Labor Rate */}
+                <View style={styles.billRow}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
+                      Standard Service / Visiting Fee
+                    </AppText>
+                    <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                      {isWarranty ? 'Covered under active warranty' : 'Agreed upfront service rate'}
+                    </AppText>
+                  </View>
+                  <AppText variant="mono" color={isWarranty ? 'textMuted' : 'textPrimary'} style={styles.billAmount}>
+                    {isWarranty
+                      ? '₹0.00'
+                      : baseLaborCharge !== null
+                      ? `₹${baseLaborCharge.toFixed(2)}`
+                      : 'Quote on Inspection'}
+                  </AppText>
+                </View>
+
+                {/* Spare Parts Note */}
+                <View style={styles.billRow}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
+                      Spare Parts & Consumables
+                    </AppText>
+                    <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                      If required during inspection
+                    </AppText>
+                  </View>
+                  <AppText variant="mono" color="textSecondary" style={styles.billAmount}>
+                    As per actuals
+                  </AppText>
+                </View>
+
+                {/* Warranty saving banner if warranty */}
+                {isWarranty && (
+                  <View style={styles.warrantySavingBox}>
+                    <AppIcon name="shield-checkmark" size="xs" color={colors.category.emeraldIcon || colors.status.success} />
+                    <AppText variant="caption" style={styles.warrantySavingText}>
+                      Warranty Applied: 100% Free Labor & Spare Coverage
+                    </AppText>
+                  </View>
+                )}
+
+                <View style={styles.divider} />
+
+                {/* Estimated Total */}
+                <View style={[styles.billRow, styles.totalBillRow]}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                      Estimated Payable Amount
+                    </AppText>
+                    <AppText variant="caption" color="textMuted">
+                      Pay to technician (Cash / UPI)
+                    </AppText>
+                  </View>
+                  <AppText variant="headingMd" color="primary" style={styles.totalAmountText}>
+                    {isWarranty
+                      ? '₹0.00'
+                      : baseLaborCharge !== null
+                      ? `₹${baseLaborCharge.toFixed(2)}`
+                      : 'Inspection Quote'}
+                  </AppText>
+                </View>
+
+                <View style={styles.estimateNoticeBox}>
+                  <AppIcon name="information-circle-outline" size="xs" color={colors.text.secondary} />
+                  <AppText variant="caption" color="textSecondary" style={styles.estimateNoticeText}>
+                    Final itemized tax invoice will be generated automatically once service is completed.
+                  </AppText>
+                </View>
+              </Card>
+            </>
+          )}
 
           {/* Replaced Spare Parts & Consumables (if any) */}
           {partsList.length > 0 && (
@@ -841,124 +1037,132 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
             </>
           )}
 
-          {/* Itemized Bill & Tax Invoice Breakdown */}
-          <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
-            Service Invoice & Bill Breakdown
-          </AppText>
-          <Card style={styles.invoiceCard} padding="md">
-            <View style={styles.invoiceHeaderRow}>
-              <View style={styles.invoiceHeaderLeft}>
-                <View style={styles.invoiceIconThumb}>
-                  <AppIcon name="receipt-outline" size="sm" color={colors.primary.main} />
+          {/* Official Itemized Bill & Tax Invoice Breakdown — Shown only after service is completed/resolved */}
+          {isResolved && (
+            <>
+              <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
+                Service Invoice & Final Bill
+              </AppText>
+              <Card style={styles.invoiceCard} padding="md">
+                <View style={styles.invoiceHeaderRow}>
+                  <View style={styles.invoiceHeaderLeft}>
+                    <View style={styles.invoiceIconThumb}>
+                      <AppIcon name="receipt-outline" size="sm" color={colors.primary.main} />
+                    </View>
+                    <View style={styles.invoiceTitleWrap}>
+                      <AppText variant="labelMd" color="textPrimary" style={styles.boldText} numberOfLines={1}>
+                        {ticketData?.invoice?.invoiceNumber || (ticketNumber ? ticketNumber.replace('SRV-', 'INV-') : 'INV-SERVICE')}
+                      </AppText>
+                      <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                        Issued: {createdAtFormatted}
+                      </AppText>
+                    </View>
+                  </View>
+                  <Badge
+                    label={ticketData?.invoice?.paymentStatus || 'PAID'}
+                    variant={ticketData?.invoice?.paymentStatus === 'PAID' || !isCancelled ? 'success' : 'warning'}
+                  />
                 </View>
-                <View style={styles.invoiceTitleWrap}>
-                  <AppText variant="labelMd" color="textPrimary" style={styles.boldText} numberOfLines={1}>
-                    {ticketData?.invoice?.invoiceNumber || (ticketNumber ? ticketNumber.replace('SRV-', 'INV-') : 'INV-SERVICE')}
-                  </AppText>
-                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                    Issued: {createdAtFormatted}
+
+                <View style={styles.divider} />
+
+                {/* Base Labor / Inspection Charge */}
+                <View style={styles.billRow}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
+                      Inspection & Labor Charge
+                    </AppText>
+                    {isWarranty && (
+                      <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                        Covered under warranty
+                      </AppText>
+                    )}
+                  </View>
+                  <AppText variant="mono" color={isWarranty ? 'textMuted' : 'textPrimary'} style={styles.billAmount}>
+                    {isWarranty
+                      ? '₹0.00'
+                      : baseLaborCharge !== null
+                      ? `₹${baseLaborCharge.toFixed(2)}`
+                      : '₹0.00'}
                   </AppText>
                 </View>
-              </View>
-              <Badge
-                label={ticketData?.invoice?.paymentStatus || (isClosed && !isCancelled ? 'PAID' : 'DUE')}
-                variant={ticketData?.invoice?.paymentStatus === 'PAID' || (isClosed && !isCancelled) ? 'success' : 'warning'}
-              />
-            </View>
 
-            <View style={styles.divider} />
+                {/* Parts Total */}
+                <View style={styles.billRow}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
+                      Replaced Spare Parts Total
+                    </AppText>
+                    {partsList.length > 0 ? (
+                      <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                        {partsList.length} component(s) replaced
+                      </AppText>
+                    ) : isWarranty ? (
+                      <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                        No chargeable parts
+                      </AppText>
+                    ) : null}
+                  </View>
+                  <AppText variant="mono" color={isWarranty ? 'textMuted' : 'textPrimary'} style={styles.billAmount}>
+                    {isWarranty ? '₹0.00' : partsList.length > 0 ? `₹${partsSubtotal.toFixed(2)}` : '₹0.00'}
+                  </AppText>
+                </View>
 
-            {/* Base Labor */}
-            <View style={styles.billRow}>
-              <View style={styles.billItemLeft}>
-                <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
-                  Inspection & Labor Charge
-                </AppText>
+                {/* Warranty Saving Banner if under warranty */}
                 {isWarranty && (
-                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                    Covered under warranty
-                  </AppText>
+                  <View style={styles.warrantySavingBox}>
+                    <AppIcon name="shield-checkmark" size="xs" color={colors.category.emeraldIcon || colors.status.success} />
+                    <AppText variant="caption" style={styles.warrantySavingText}>
+                      Warranty Applied: 100% Free Labor & Spare Coverage
+                    </AppText>
+                  </View>
                 )}
-              </View>
-              <AppText variant="mono" color={isWarranty ? 'textMuted' : 'textPrimary'} style={styles.billAmount}>
-                {isWarranty ? '₹0.00' : `₹${baseLaborCharge.toFixed(2)}`}
-              </AppText>
-            </View>
 
-            {/* Parts Total */}
-            <View style={styles.billRow}>
-              <View style={styles.billItemLeft}>
-                <AppText variant="bodySm" color="textSecondary" style={styles.billLabel} numberOfLines={1}>
-                  Replaced Spare Parts Total
-                </AppText>
-                {partsList.length > 0 ? (
-                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                    {partsList.length} component(s) replaced
+                <View style={styles.divider} />
+
+                {/* Total Bill Amount */}
+                <View style={[styles.billRow, styles.totalBillRow]}>
+                  <View style={styles.billItemLeft}>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                      Total Bill Amount
+                    </AppText>
+                    <AppText variant="caption" color="textMuted">
+                      Settled in Full
+                    </AppText>
+                  </View>
+                  <AppText
+                    variant="headingMd"
+                    color="textPrimary"
+                    style={styles.totalAmountText}
+                  >
+                    ₹{finalTotalAmount.toFixed(2)}
                   </AppText>
-                ) : isWarranty ? (
-                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                    No chargeable parts
-                  </AppText>
-                ) : null}
-              </View>
-              <AppText variant="mono" color={isWarranty ? 'textMuted' : 'textPrimary'} style={styles.billAmount}>
-                {isWarranty ? '₹0.00' : `₹${partsSubtotal.toFixed(2)}`}
-              </AppText>
-            </View>
-
-            {/* Warranty Saving Banner if under warranty */}
-            {isWarranty && (
-              <View style={styles.warrantySavingBox}>
-                <AppIcon name="shield-checkmark" size="xs" color={colors.category.emeraldIcon || colors.status.success} />
-                <AppText variant="caption" style={styles.warrantySavingText}>
-                  Warranty Applied: 100% Free Labor & Spare Coverage
-                </AppText>
-              </View>
-            )}
-
-            <View style={styles.divider} />
-
-            {/* Total Bill Amount */}
-            <View style={[styles.billRow, styles.totalBillRow]}>
-              <View style={styles.billItemLeft}>
-                <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
-                  Total Bill Amount
-                </AppText>
-                <AppText variant="caption" color="textMuted">
-                  {isClosed && !isCancelled ? 'Settled in Full' : 'Payable to Technician'}
-                </AppText>
-              </View>
-              <AppText
-                variant="headingMd"
-                color={isClosed && !isCancelled ? 'textPrimary' : 'primary'}
-                style={styles.totalAmountText}
-              >
-                ₹{finalTotalAmount.toFixed(2)}
-              </AppText>
-            </View>
-          </Card>
+                </View>
+              </Card>
+            </>
+          )}
 
           {/* Customer Review & Rating Section for Completed Services with an Assigned Technician */}
-          {isResolved && Boolean(mechanicName || ticketData?.rating || primaryJob?.rating) && (
+          {isResolved && Boolean(mechanicName || primaryJob?.rating) && (
             <>
               <AppText variant="headingMd" color="textPrimary" style={styles.sectionTitle}>
                 Service Feedback & Rating
               </AppText>
               <Card style={styles.reviewCard} padding="md">
-                {ticketData?.rating || primaryJob?.rating ? (
+                {primaryJob?.rating ? (
                   <View style={styles.reviewedBox}>
                     <View style={styles.reviewHeaderRow}>
                       <View style={styles.reviewStarGroup}>
                         <AppIcon name="star" size="sm" color={colors.status.warning} />
                         <AppText variant="labelLg" color="textPrimary" style={styles.boldText}>
-                          {ticketData?.rating || primaryJob?.rating} / 5 Rating
+                          {primaryJob.rating} / 5 Rating
                         </AppText>
                       </View>
                       <Badge label="REVIEWED" variant="success" />
                     </View>
-                    {(ticketData?.feedback || primaryJob?.feedback) && (
+                    {primaryJob.feedback && (
                       <AppText variant="bodyMd" color="textSecondary" style={styles.feedbackQuote}>
-                        "{ticketData?.feedback || primaryJob?.feedback}"
+                        "{primaryJob.feedback}"
                       </AppText>
                     )}
                   </View>
@@ -1029,13 +1233,6 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                 style={styles.fullWidthBtn}
               />
             )}
-
-            <Button
-              title="Need Help? Contact Support"
-              variant="cta"
-              onPress={() => navigation.navigate('HelpSupportScreen')}
-              style={styles.fullWidthBtn}
-            />
           </View>
         </ScrollView>
       )}
@@ -1177,6 +1374,11 @@ const makeStyles = (colors: any, bottomInset: number) => {
       fontWeight: '600',
       fontSize: 11,
     },
+    warningPillText: {
+      fontWeight: '600',
+      fontSize: 11,
+      color: colors.status.warning,
+    },
     divider: {
       height: 1,
       backgroundColor: colors.border.light,
@@ -1204,8 +1406,13 @@ const makeStyles = (colors: any, bottomInset: number) => {
       borderTopColor: colors.border.light,
       gap: spacing.xs,
     },
-    warrantyText: {
+    warrantyCoveredText: {
       flex: 1,
+      color: colors.category.emeraldIcon,
+    },
+    warrantyNonCoveredText: {
+      flex: 1,
+      color: colors.text.muted,
     },
     otpCard: {
       backgroundColor: colors.primary.light,
@@ -1245,6 +1452,41 @@ const makeStyles = (colors: any, bottomInset: number) => {
       marginBottom: spacing.xs + 2,
       marginTop: spacing.xs,
     },
+    applianceCard: {
+      marginBottom: spacing.md,
+      overflow: 'hidden',
+    },
+    applianceRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+    },
+    applianceIconThumb: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      backgroundColor: colors.primary.light,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      marginTop: 2,
+    },
+    applianceInfo: {
+      flex: 1,
+      minWidth: 0,
+    },
+    applianceMetaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 4,
+      marginTop: 2,
+    },
+    applianceWarrantyChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 6,
+    },
     technicianCard: {
       marginBottom: spacing.sm,
       overflow: 'hidden',
@@ -1259,6 +1501,15 @@ const makeStyles = (colors: any, bottomInset: number) => {
       height: 44,
       borderRadius: 22,
       backgroundColor: colors.primary.light,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    pendingTechAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.neutral[100],
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
@@ -1291,11 +1542,36 @@ const makeStyles = (colors: any, bottomInset: number) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      alignSelf: 'flex-start',
       backgroundColor: colors.category.indigoBg,
       paddingHorizontal: spacing.sm,
       paddingVertical: 4,
       borderRadius: radius.pill,
+    },
+    dealerEmailButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.neutral[100],
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+      maxWidth: 180,
+    },
+    customerEmailButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.neutral[100],
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+      maxWidth: 180,
+    },
+    contactActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
       marginTop: 4,
     },
     dealerPhoneText: {
@@ -1306,13 +1582,16 @@ const makeStyles = (colors: any, bottomInset: number) => {
       fontWeight: '700',
       color: colors.primary.main,
     },
+    metaSpacing: {
+      marginTop: 4,
+    },
     dealerCard: {
       marginBottom: spacing.md,
       overflow: 'hidden',
     },
     dealerRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: spacing.sm,
     },
     dealerIconThumb: {
@@ -1323,6 +1602,7 @@ const makeStyles = (colors: any, bottomInset: number) => {
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
+      marginTop: 2,
     },
     dealerInfo: {
       flex: 1,
@@ -1345,6 +1625,7 @@ const makeStyles = (colors: any, bottomInset: number) => {
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
+      marginTop: 2,
     },
     customerInfo: {
       flex: 1,
@@ -1413,6 +1694,33 @@ const makeStyles = (colors: any, bottomInset: number) => {
       padding: spacing.sm,
       borderRadius: radius.sm,
       marginTop: spacing.sm,
+    },
+    estimateCard: {
+      marginBottom: spacing.md,
+      overflow: 'hidden',
+    },
+    estimateIconThumb: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.md,
+      backgroundColor: colors.primary.light,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    estimateNoticeBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.neutral[100],
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs + 2,
+      borderRadius: radius.sm,
+      marginTop: spacing.sm,
+      gap: spacing.xs,
+    },
+    estimateNoticeText: {
+      flex: 1,
+      lineHeight: 16,
     },
     invoiceCard: {
       marginBottom: spacing.md,
