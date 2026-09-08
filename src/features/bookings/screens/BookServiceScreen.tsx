@@ -24,6 +24,7 @@ import { Card } from '@shared/components/atoms/Card';
 import { Badge } from '@shared/components/atoms/Badge';
 import { AppIcon } from '@shared/components/atoms/Icon';
 import { AppText } from '@shared/components/atoms/AppText';
+import { FieldLabel } from '@shared/components/atoms/FieldLabel';
 import { Select, SelectOption } from '@shared/components/molecules/Select';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 import { bookingApi } from '@infrastructure/api/bookingApi';
@@ -1086,9 +1087,13 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
 
             {/* 5. Issue Description Textarea */}
             <View style={styles.descLabelRow}>
-              <AppText variant="labelLg" color="textPrimary" style={styles.sectionLabel}>
-                Problem Description *
-              </AppText>
+              <FieldLabel
+                label="Problem Description"
+                required
+                variant="labelLg"
+                style={styles.sectionLabel}
+                containerStyle={styles.zeroBottomMargin}
+              />
               <AppText
                 variant="caption"
                 style={[styles.charCount, description.length > 250 ? styles.errorCharCount : undefined]}
@@ -1327,6 +1332,9 @@ const makeStyles = (colors: any) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       marginTop: spacing.md,
+    },
+    zeroBottomMargin: {
+      marginBottom: 0,
     },
     charCount: {
       color: colors.text.muted,

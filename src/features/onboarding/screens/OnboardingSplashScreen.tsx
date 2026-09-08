@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Button } from '@shared/components/atoms/Button';
 import { Card } from '@shared/components/atoms/Card';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 
 export const OnboardingSplashScreen = ({ navigation }: any) => {
@@ -16,8 +17,8 @@ export const OnboardingSplashScreen = ({ navigation }: any) => {
         <View style={styles.logoBadge}>
           <AppIcon name="cube" size={32} color={colors.text.inverse} />
         </View>
-        <Text style={styles.appTitle}>Smart Sales & Service Ecosystem</Text>
-        <Text style={styles.appSubtitle}>Customer Care Mobile App</Text>
+        <AppText variant="headingLg" color="textPrimary" style={styles.appTitle}>Smart Sales & Service Ecosystem</AppText>
+        <AppText variant="labelSm" color="primary" style={styles.appSubtitle}>Customer Care Mobile App</AppText>
       </View>
 
       <Card style={styles.illustrationCard} padding="xl">
@@ -28,25 +29,25 @@ export const OnboardingSplashScreen = ({ navigation }: any) => {
           <View style={styles.applianceRow}>
             <View style={styles.applianceChip}>
               <AppIcon name="hardware-chip-outline" size="xs" color={colors.primary.dark} style={styles.chipIcon} />
-              <Text style={styles.chipText}>AC</Text>
+              <AppText variant="caption" color="primaryDark" style={styles.chipText}>AC</AppText>
             </View>
             <View style={styles.applianceChip}>
               <AppIcon name="sync-outline" size="xs" color={colors.primary.dark} style={styles.chipIcon} />
-              <Text style={styles.chipText}>Washer</Text>
+              <AppText variant="caption" color="primaryDark" style={styles.chipText}>Washer</AppText>
             </View>
             <View style={styles.applianceChip}>
               <AppIcon name="water-outline" size="xs" color={colors.primary.dark} style={styles.chipIcon} />
-              <Text style={styles.chipText}>RO Purifier</Text>
+              <AppText variant="caption" color="primaryDark" style={styles.chipText}>RO Purifier</AppText>
             </View>
           </View>
         </View>
       </Card>
 
       <View style={styles.content}>
-        <Text style={styles.headline}>Smart Care for Every Appliance</Text>
-        <Text style={styles.description}>
+        <AppText variant="headingXl" color="textPrimary" style={styles.headline}>Smart Care for Every Appliance</AppText>
+        <AppText variant="bodyMd" color="textSecondary" style={styles.description}>
           Register your home products, track digital warranty, book instant repair services & manage AMC plans — all in one app.
-        </Text>
+        </AppText>
 
         {/* Carousel indicator dots */}
         <View style={styles.indicatorContainer}>
@@ -68,7 +69,7 @@ export const OnboardingSplashScreen = ({ navigation }: any) => {
           style={styles.alreadyContainer}
           activeOpacity={0.7}
         >
-          <Text style={styles.alreadyText}>I already have an account</Text>
+          <AppText variant="labelMd" color="primary" style={styles.alreadyText}>I already have an account</AppText>
         </TouchableOpacity>
       </View>
     </ScreenWrapper>

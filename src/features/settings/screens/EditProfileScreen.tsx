@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ActivityIndicator,
   Image,
@@ -16,6 +15,7 @@ import { Card } from '@shared/components/atoms/Card';
 import { Input } from '@shared/components/atoms/Input';
 import { Button } from '@shared/components/atoms/Button';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { Select, SelectOption } from '@shared/components/molecules/Select';
 import { customerApi, LocationItem } from '@infrastructure/api/customerApi';
 import { CustomerProfile } from '@core/types/api';
@@ -259,7 +259,7 @@ export const EditProfileScreen = ({ navigation }: any) => {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={styles.loadingText}>Loading Profile Details...</Text>
+          <AppText variant="bodySm" color="textSecondary" style={styles.loadingText}>Loading Profile Details...</AppText>
         </View>
       ) : (
         <Card style={styles.formCard} padding="lg">
@@ -278,16 +278,16 @@ export const EditProfileScreen = ({ navigation }: any) => {
               </View>
             </TouchableOpacity>
             <View style={styles.avatarMeta}>
-              <Text style={styles.avatarName}>{name}</Text>
+              <AppText variant="headingMd" color="textPrimary" style={styles.avatarName}>{name}</AppText>
               <TouchableOpacity onPress={handlePickPhoto}>
-                <Text style={styles.changePhotoBtnText}>Tap to change photo</Text>
+                <AppText variant="caption" color="primary" style={styles.changePhotoBtnText}>Tap to change photo</AppText>
               </TouchableOpacity>
-              <Text style={styles.avatarSub}>Verified Customer Account</Text>
+              <AppText variant="caption" color="textSecondary" style={styles.avatarSub}>Verified Customer Account</AppText>
             </View>
           </View>
 
           {/* Personal Information */}
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+          <AppText variant="headingSm" color="textPrimary" style={styles.sectionTitle}>Personal Information</AppText>
 
           <Input
             label="Full Name *"
@@ -320,12 +320,12 @@ export const EditProfileScreen = ({ navigation }: any) => {
 
           {/* Address Information */}
           <View style={styles.addressHeaderRow}>
-            <Text style={styles.sectionTitle}>Address Details</Text>
+            <AppText variant="headingSm" color="textPrimary" style={styles.sectionTitle}>Address Details</AppText>
             <TouchableOpacity
               onPress={() => navigation.navigate('SavedAddressesScreen')}
               activeOpacity={0.7}
             >
-              <Text style={styles.manageLinkText}>Manage Saved Addresses ➔</Text>
+              <AppText variant="caption" color="primary" style={styles.manageLinkText}>Manage Saved Addresses ➔</AppText>
             </TouchableOpacity>
           </View>
 
@@ -378,8 +378,8 @@ export const EditProfileScreen = ({ navigation }: any) => {
             leftIcon={<AppIcon name="pin-outline" size="sm" color={colors.primary.main} />}
           />
 
-          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-          {successMsg ? <Text style={styles.successText}>{successMsg}</Text> : null}
+          {errorMsg ? <AppText variant="caption" style={styles.errorText}>{errorMsg}</AppText> : null}
+          {successMsg ? <AppText variant="caption" style={styles.successText}>{successMsg}</AppText> : null}
 
           <Button
             title="Save Profile Changes"

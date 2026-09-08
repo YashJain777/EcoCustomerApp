@@ -10,7 +10,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -23,11 +22,13 @@ import {
   TextInput,
   TouchableWithoutFeedback,
   Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera } from 'react-native-camera-kit';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { spacing, radius, shadows, useTheme, getCommonStyles } from '@theme/index';
 import { productApi } from '@infrastructure/api/productApi';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -265,7 +266,7 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
         >
           <AppIcon name="arrow-back" size="md" color={colors.text.inverse} />
         </TouchableOpacity>
-        <Text style={styles.title}>Scan Product QR</Text>
+        <AppText variant="headingMd" color="textInverse" style={styles.title}>Scan Product QR</AppText>
         <TouchableOpacity
           style={[styles.navIconBtn, flashOn && styles.flashBtnActive]}
           onPress={() => setFlashOn(!flashOn)}
@@ -321,7 +322,7 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
           {scanning && (
             <View style={styles.scanningOverlay}>
               <ActivityIndicator size="large" color={colors.cta.main} />
-              <Text style={styles.scanningOverlayText}>Linking appliance...</Text>
+              <AppText variant="labelMd" style={styles.scanningOverlayText}>Linking appliance...</AppText>
             </View>
           )}
         </View>
@@ -337,17 +338,17 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
                 onPress={() => setSelectedZoom(zoom)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.zoomText, isSelected && styles.activeZoomText]}>{zoom}</Text>
+                <AppText variant="labelSm" style={[styles.zoomText, isSelected && styles.activeZoomText]}>{zoom}</AppText>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={styles.instructionText}>
+        <AppText variant="bodySm" style={styles.instructionText}>
           {scanning
             ? 'Binding appliance to your account...'
             : `Align product QR sticker within the frame (${selectedZoom} zoom)`}
-        </Text>
+        </AppText>
       </View>
 
       {/* Floating 3-Button Action Dock */}
@@ -357,7 +358,7 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
           <View style={styles.dockIconBg}>
             <AppIcon name="images-outline" size="md" color={colors.text.inverse} />
           </View>
-          <Text style={styles.dockText}>Upload Photo</Text>
+          <AppText variant="caption" style={styles.dockText}>Upload Photo</AppText>
         </TouchableOpacity>
 
         {/* Center Action: Manual Enter Serial / QR */}
@@ -370,9 +371,9 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
           <View style={styles.mainScanBtnBg}>
             <AppIcon name="create-outline" size="lg" color={colors.text.inverse} />
           </View>
-          <Text style={[styles.dockText, styles.activeDockText]}>
+          <AppText variant="caption" style={[styles.dockText, styles.activeDockText]}>
             Enter Code
-          </Text>
+          </AppText>
         </TouchableOpacity>
 
         {/* Right Action: How It Works Help */}
@@ -389,58 +390,63 @@ export const CustomerQRScanScreen = ({ navigation }: any) => {
           <View style={styles.dockIconBg}>
             <AppIcon name="help-circle-outline" size="md" color={colors.text.inverse} />
           </View>
-          <Text style={styles.dockText}>How it works</Text>
+          <AppText variant="caption" style={styles.dockText}>How it works</AppText>
         </TouchableOpacity>
       </View>
 
-      {/* Manual Code Entry Modal */}
+      {/* Manual Code Entry Modal with Keyboard Avoidance */}
       <Modal
         visible={showManualModal}
         transparent
         animationType="fade"
         onRequestClose={() => setShowManualModal(false)}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Enter QR or Serial Code</Text>
-                <TouchableOpacity onPress={() => setShowManualModal(false)} style={styles.modalCloseBtn}>
-                  <AppIcon name="close" size="sm" color={colors.text.secondary} />
-                </TouchableOpacity>
-              </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={common.flex}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <AppText variant="headingSm" color="textPrimary" style={styles.modalTitle}>Enter QR or Serial Code</AppText>
+                  <TouchableOpacity onPress={() => setShowManualModal(false)} style={styles.modalCloseBtn}>
+                    <AppIcon name="close" size="sm" color={colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
 
-              <Text style={styles.modalDescription}>
-                Enter the product code printed beneath the appliance QR sticker (e.g. QR75 or SE-2792283010).
-              </Text>
+                <AppText variant="bodySm" color="textSecondary" style={styles.modalDescription}>
+                  Enter the product code printed beneath the appliance QR sticker (e.g. QR75 or SE-2792283010).
+                </AppText>
 
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. QR75 or SE-2792283010"
-                placeholderTextColor={colors.text.muted}
-                value={manualCodeInput}
-                onChangeText={setManualCodeInput}
-                autoCapitalize="characters"
-                autoCorrect={false}
-              />
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. QR75 or SE-2792283010"
+                  placeholderTextColor={colors.text.muted}
+                  value={manualCodeInput}
+                  onChangeText={setManualCodeInput}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setShowManualModal(false)}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalSubmitBtn}
-                  onPress={handleManualSubmit}
-                >
-                  <Text style={styles.modalSubmitText}>Verify & Link</Text>
-                </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtn}
+                    onPress={() => setShowManualModal(false)}
+                  >
+                    <AppText variant="labelMd" color="textSecondary" style={styles.modalCancelText}>Cancel</AppText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalSubmitBtn}
+                    onPress={handleManualSubmit}
+                  >
+                    <AppText variant="labelMd" color="textInverse" style={styles.modalSubmitText}>Verify & Link</AppText>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenWrapper>
   );

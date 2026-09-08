@@ -5,12 +5,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Header } from '@shared/components/molecules/Header';
 import { Card } from '@shared/components/atoms/Card';
 import { Button } from '@shared/components/atoms/Button';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
+import { FieldLabel } from '@shared/components/atoms/FieldLabel';
 import { spacing, radius, useTheme } from '@theme/index';
 import { supportApi } from '@infrastructure/api/supportApi';
 import { cmsApi, CmsContentEntry } from '@infrastructure/api/cmsApi';
@@ -122,7 +124,7 @@ export const HelpSupportScreen = ({ navigation }: any) => {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.headline}>How can we help you?</Text>
+        <AppText variant="headingMd" color="textPrimary" style={styles.headline}>How can we help you?</AppText>
 
         {/* 2x2 Action Cards Grid */}
         <View style={styles.gridRow}>
@@ -130,8 +132,8 @@ export const HelpSupportScreen = ({ navigation }: any) => {
             <View style={[styles.cardIconBg, styles.bgIndigo]}>
               <AppIcon name="document-text-outline" size="md" color={colors.category.indigoIcon} />
             </View>
-            <Text style={styles.cardTitle}>Terms & Conditions</Text>
-            <Text style={styles.cardDesc}>View policy & legal guidelines</Text>
+            <AppText variant="labelMd" color="textPrimary" style={styles.cardTitle}>Terms & Conditions</AppText>
+            <AppText variant="caption" color="textSecondary" style={styles.cardDesc}>View policy & legal guidelines</AppText>
           </Card>
 
           <Card
@@ -142,8 +144,8 @@ export const HelpSupportScreen = ({ navigation }: any) => {
             <View style={[styles.cardIconBg, styles.bgEmerald]}>
               <AppIcon name="chatbubbles-outline" size="md" color={colors.category.emeraldIcon} />
             </View>
-            <Text style={styles.cardTitle}>Alerts & Updates</Text>
-            <Text style={styles.cardDesc}>View recent app notifications</Text>
+            <AppText variant="labelMd" color="textPrimary" style={styles.cardTitle}>Alerts & Updates</AppText>
+            <AppText variant="caption" color="textSecondary" style={styles.cardDesc}>View recent app notifications</AppText>
           </Card>
         </View>
 
@@ -156,8 +158,8 @@ export const HelpSupportScreen = ({ navigation }: any) => {
             <View style={[styles.cardIconBg, styles.bgOrange]}>
               <AppIcon name="build-outline" size="md" color={colors.category.orangeIcon} />
             </View>
-            <Text style={styles.cardTitle}>My Service Visits</Text>
-            <Text style={styles.cardDesc}>Track active repair requests</Text>
+            <AppText variant="labelMd" color="textPrimary" style={styles.cardTitle}>My Service Visits</AppText>
+            <AppText variant="caption" color="textSecondary" style={styles.cardDesc}>Track active repair requests</AppText>
           </Card>
 
           <Card
@@ -168,13 +170,13 @@ export const HelpSupportScreen = ({ navigation }: any) => {
             <View style={[styles.cardIconBg, styles.bgRose]}>
               <AppIcon name="call-outline" size="md" color={colors.category.roseIcon} />
             </View>
-            <Text style={styles.cardTitle}>Call Support</Text>
-            <Text style={styles.cardDesc}>+91 1800 720 6567{'\n'}10:00 AM - 7:00 PM</Text>
+            <AppText variant="labelMd" color="textPrimary" style={styles.cardTitle}>Call Support</AppText>
+            <AppText variant="caption" color="textSecondary" style={styles.cardDesc}>+91 1800 720 6567{'\n'}10:00 AM - 7:00 PM</AppText>
           </Card>
         </View>
 
         {/* Live CMS FAQs Section */}
-        <Text style={styles.sectionHeadline}>Frequently Asked Questions</Text>
+        <AppText variant="headingSm" color="textPrimary" style={styles.sectionHeadline}>Frequently Asked Questions</AppText>
         {loadingFaqs ? (
           <ActivityIndicator size="small" color={colors.primary.main} style={styles.loaderMargin} />
         ) : (
@@ -184,7 +186,7 @@ export const HelpSupportScreen = ({ navigation }: any) => {
               return (
                 <Card key={faq.id} style={styles.faqCard} padding="md" onPress={() => toggleFaq(faq.id)}>
                   <View style={styles.faqHeaderRow}>
-                    <Text style={styles.faqQuestion}>{faq.question}</Text>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.faqQuestion}>{faq.question}</AppText>
                     <AppIcon
                       name={isExpanded ? 'chevron-up-outline' : 'chevron-down-outline'}
                       size="sm"
@@ -192,7 +194,7 @@ export const HelpSupportScreen = ({ navigation }: any) => {
                     />
                   </View>
                   {isExpanded && (
-                    <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                    <AppText variant="bodySm" color="textSecondary" style={styles.faqAnswer}>{faq.answer}</AppText>
                   )}
                 </Card>
               );
@@ -201,9 +203,9 @@ export const HelpSupportScreen = ({ navigation }: any) => {
         )}
 
         {/* Submit Support Inquiry Form */}
-        <Text style={styles.sectionHeadline}>Send Support Message</Text>
+        <AppText variant="headingSm" color="textPrimary" style={styles.sectionHeadline}>Send Support Message</AppText>
         <Card style={styles.formCard} padding="md">
-          <Text style={styles.inputLabel}>Subject *</Text>
+          <FieldLabel label="Subject" required />
           <View style={styles.inputBox}>
             <TextInput
               style={styles.textInput}
@@ -219,8 +221,8 @@ export const HelpSupportScreen = ({ navigation }: any) => {
           </View>
 
           <View style={styles.labelRow}>
-            <Text style={styles.inputLabel}>Message *</Text>
-            <Text style={styles.charCount}>{message.length}/500</Text>
+            <FieldLabel label="Message" required />
+            <AppText variant="caption" color="textSecondary" style={styles.charCount}>{message.length}/500</AppText>
           </View>
           <View style={styles.textAreaBox}>
             <TextInput
@@ -238,7 +240,7 @@ export const HelpSupportScreen = ({ navigation }: any) => {
             />
           </View>
 
-          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+          {errorMsg && <AppText variant="caption" style={styles.errorText}>{errorMsg}</AppText>}
 
           <Button
             title={submitting ? 'Submitting...' : 'Submit Inquiry'}

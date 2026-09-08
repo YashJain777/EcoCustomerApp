@@ -117,6 +117,28 @@ export interface AppColors {
     addMoneyBg: string;
     addMoneyBorder: string;
   };
+
+  // ── Canonical DESIGN_SYSTEM.md Flat Semantic Tokens ──────────────────
+  surface: string;
+  surfaceElevated: string;
+  surfaceOverlay: string;
+  primaryLight: string;
+  primaryDark: string;
+  danger: string;
+  dangerLight: string;
+  success: string;
+  successLight: string;
+  warning: string;
+  warningLight: string;
+  info: string;
+  infoLight: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  textInverse: string;
+  textOnPrimary: string;
+  borderFocus: string;
+  divider: string;
 }
 
 export const colors = lightTheme.colors;

@@ -79,7 +79,12 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
   const renderContent = () => {
     let body = renderBody();
 
-    if (keyboardAvoiding) {
+    // Smart Keyboard Avoiding: iOS always padding; Android scrollable uses OS adjustResize
+    const shouldApplyKAV =
+      keyboardAvoiding &&
+      (Platform.OS === 'ios' ? true : !scrollable);
+
+    if (shouldApplyKAV) {
       body = (
         <KeyboardAvoidingView
           style={styles.flex}
@@ -138,3 +143,5 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
 });
+
+export { ScreenWrapper as AppScreen };

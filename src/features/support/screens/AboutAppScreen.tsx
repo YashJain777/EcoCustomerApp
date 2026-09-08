@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Header } from '@shared/components/molecules/Header';
 import { Card } from '@shared/components/atoms/Card';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { spacing, useTheme } from '@theme/index';
 
 export const AboutAppScreen = ({ navigation }: any) => {
@@ -23,38 +24,38 @@ export const AboutAppScreen = ({ navigation }: any) => {
           <View style={styles.logoBadge}>
             <AppIcon name="cube-outline" size={36} color={colors.primary.main} />
           </View>
-          <Text style={styles.appName}>Smart Sales, Service & Transport Ecosystem</Text>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
+          <AppText variant="headingMd" color="textPrimary" style={styles.appName}>Smart Sales, Service & Transport Ecosystem</AppText>
+          <AppText variant="caption" color="textMuted" style={styles.versionText}>Version 1.0.0</AppText>
         </View>
 
-        <Text style={styles.description}>
+        <AppText variant="bodyMd" color="textSecondary" style={styles.description}>
           Your complete solution for product registration, warranty management, service requests, and much more.
-        </Text>
+        </AppText>
 
         <Card style={styles.featuresCard} padding="lg">
           <View style={styles.featureItem}>
             <AppIcon name="checkmark-circle" size="md" color={colors.status.success} style={styles.featureIcon} />
-            <Text style={styles.featureText}>Secure & Reliable</Text>
+            <AppText variant="bodyMd" color="textPrimary" style={styles.featureText}>Secure & Reliable</AppText>
           </View>
 
           <View style={styles.featureItem}>
             <AppIcon name="checkmark-circle" size="md" color={colors.status.success} style={styles.featureIcon} />
-            <Text style={styles.featureText}>Fast & Easy Service</Text>
+            <AppText variant="bodyMd" color="textPrimary" style={styles.featureText}>Fast & Easy Service</AppText>
           </View>
 
           <View style={styles.featureItem}>
             <AppIcon name="checkmark-circle" size="md" color={colors.status.success} style={styles.featureIcon} />
-            <Text style={styles.featureText}>Digital Warranty</Text>
+            <AppText variant="bodyMd" color="textPrimary" style={styles.featureText}>Digital Warranty</AppText>
           </View>
 
           <View style={styles.featureItem}>
             <AppIcon name="checkmark-circle" size="md" color={colors.status.success} style={styles.featureIcon} />
-            <Text style={styles.featureText}>24x7 Support</Text>
+            <AppText variant="bodyMd" color="textPrimary" style={styles.featureText}>24x7 Support</AppText>
           </View>
         </Card>
 
         <View style={styles.footer}>
-          <Text style={styles.copyrightText}>© 2026 All rights reserved.</Text>
+          <AppText variant="caption" color="textMuted" style={styles.copyrightText}>© 2026 All rights reserved.</AppText>
         </View>
       </ScrollView>
     </ScreenWrapper>

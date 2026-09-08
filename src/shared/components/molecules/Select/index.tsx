@@ -32,6 +32,7 @@ export interface SelectOption {
 
 export interface SelectProps {
   label?: string;
+  required?: boolean;
   placeholder?: string;
   value?: string;
   options: SelectOption[];
@@ -46,6 +47,7 @@ export interface SelectProps {
 
 export const Select: React.FC<SelectProps> = ({
   label,
+  required = false,
   placeholder = 'Select option...',
   value,
   options = [],
@@ -62,6 +64,9 @@ export const Select: React.FC<SelectProps> = ({
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const hasAsterisk = required || (typeof label === 'string' && label.includes('*'));
+  const cleanLabel = typeof label === 'string' ? label.replace(/\s*\*+/g, '').trim() : label;
 
   const selectedOption = useMemo(
     () => options.find((opt) => opt.value === value),
@@ -88,7 +93,12 @@ export const Select: React.FC<SelectProps> = ({
     <View style={[styles.container, style]}>
       {label ? (
         <AppText variant="labelSm" color="textSecondary" style={styles.label}>
-          {label}
+          {cleanLabel}
+          {hasAsterisk ? (
+            <AppText variant="labelSm" style={styles.requiredStar}>
+              {' *'}
+            </AppText>
+          ) : null}
         </AppText>
       ) : null}
 
@@ -256,6 +266,10 @@ const makeStyles = (colors: any) =>
     label: {
       marginBottom: 6,
       fontWeight: '600',
+    },
+    requiredStar: {
+      color: colors.status?.danger || colors.danger || '#EF4444',
+      fontWeight: '700',
     },
     triggerBox: {
       flexDirection: 'row',

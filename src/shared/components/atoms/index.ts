@@ -4,3 +4,4 @@ export * from './Badge';
 export * from './Card';
 export * from './Icon';
 export { Input, Input as AppInput } from './Input';
+export * from './FieldLabel';

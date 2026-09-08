@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   TextInput,
@@ -9,6 +8,7 @@ import {
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Button } from '@shared/components/atoms/Button';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { Card } from '@shared/components/atoms/Card';
 import { authApi } from '@infrastructure/api/authApi';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
@@ -100,11 +100,11 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
       </View>
 
       <View style={styles.titleContainer}>
-        <Text style={styles.title}>Enter OTP</Text>
-        <Text style={styles.subtitle}>
+        <AppText variant="displayMd" color="textPrimary" style={styles.title}>Enter OTP</AppText>
+        <AppText variant="bodyMd" color="textSecondary" style={styles.subtitle}>
           We have sent a 6-digit code to{' '}
-          <Text style={styles.mobileHighlight}>+91 {mobile}</Text>
-        </Text>
+          <AppText variant="bodyMd" color="primary" style={styles.mobileHighlight}>+91 {mobile}</AppText>
+        </AppText>
 
         {devHint ? (
           <TouchableOpacity
@@ -113,7 +113,7 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
             activeOpacity={0.7}
           >
             <AppIcon name="key-outline" size="xs" color={colors.primary.main} style={styles.keyIcon} />
-            <Text style={styles.devHintText}>Auto-fill Dev OTP: {devHint}</Text>
+            <AppText variant="caption" color="primary" style={styles.devHintText}>Auto-fill Dev OTP: {devHint}</AppText>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -141,18 +141,18 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
         ))}
       </View>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <AppText variant="caption" style={styles.errorText}>{error}</AppText> : null}
 
       <TouchableOpacity style={styles.resendContainer} activeOpacity={0.7}>
-        <Text style={styles.resendText}>Resend OTP</Text>
+        <AppText variant="labelMd" color="primary" style={styles.resendText}>Resend OTP</AppText>
       </TouchableOpacity>
 
       {/* Security Callout Banner */}
       <Card style={styles.securityCard} padding="md" variant="flat">
         <AppIcon name="shield-checkmark-outline" size="lg" color={colors.primary.main} style={styles.securityIcon} />
         <View style={styles.securityTextGroup}>
-          <Text style={styles.securityTitle}>Your number is safe with us.</Text>
-          <Text style={styles.securityDesc}>We don't share your details with anyone.</Text>
+          <AppText variant="labelSm" color="textPrimary" style={styles.securityTitle}>Your number is safe with us.</AppText>
+          <AppText variant="caption" color="textSecondary" style={styles.securityDesc}>We don't share your details with anyone.</AppText>
         </View>
       </Card>
 

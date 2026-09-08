@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Header } from '@shared/components/molecules/Header';
 import { ListItemCard } from '@shared/components/molecules/ListItemCard';
 import { Card } from '@shared/components/atoms/Card';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { EmptyState } from '@shared/components/molecules/EmptyState';
 import { spacing, radius, shadows, useTheme } from '@theme/index';
 
@@ -67,20 +68,20 @@ export const WalletScreen = ({ navigation }: any) => {
       {/* Wallet Balance Hero Card */}
       <Card style={styles.balanceCard} padding="lg">
         <View style={styles.balanceMainGroup}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>₹ 2,450.00</Text>
+          <AppText variant="caption" style={styles.balanceLabel}>Available Balance</AppText>
+          <AppText variant="displayMd" style={styles.balanceAmount}>₹ 2,450.00</AppText>
         </View>
         <TouchableOpacity style={styles.addMoneyBtn} activeOpacity={0.8}>
           <AppIcon name="add" size="sm" color={colors.text.inverse} style={styles.addIcon} />
-          <Text style={styles.addMoneyText}>Add Money</Text>
+          <AppText variant="labelSm" style={styles.addMoneyText}>Add Money</AppText>
         </TouchableOpacity>
       </Card>
 
       {/* Recent Transactions List */}
       <View style={styles.txHeaderRow}>
-        <Text style={styles.sectionTitle}>Recent Transactions</Text>
+        <AppText variant="headingSm" color="textPrimary" style={styles.sectionTitle}>Recent Transactions</AppText>
         <TouchableOpacity>
-          <Text style={styles.viewAllText}>View All</Text>
+          <AppText variant="labelSm" color="primary" style={styles.viewAllText}>View All</AppText>
         </TouchableOpacity>
       </View>
 

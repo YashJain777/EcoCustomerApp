@@ -5,6 +5,7 @@ import { spacing, radius, useTheme } from '@theme/index';
 
 interface InputProps extends TextInputProps {
   label?: string;
+  required?: boolean;
   error?: string;
   leftIcon?: React.ReactNode;
   prefix?: string;
@@ -14,6 +15,7 @@ interface InputProps extends TextInputProps {
 
 export const Input: React.FC<InputProps> = ({
   label,
+  required = false,
   error,
   leftIcon,
   prefix,
@@ -25,9 +27,22 @@ export const Input: React.FC<InputProps> = ({
   const { theme } = useTheme();
   const colors = theme.colors;
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
+
+  const hasAsterisk = required || (typeof label === 'string' && label.includes('*'));
+  const cleanLabel = typeof label === 'string' ? label.replace(/\s*\*+/g, '').trim() : label;
+
   return (
     <View style={[styles.container, containerStyle]}>
-      {label ? <AppText variant="labelMd" style={styles.label}>{label}</AppText> : null}
+      {label ? (
+        <AppText variant="labelMd" style={styles.label}>
+          {cleanLabel}
+          {hasAsterisk && (
+            <AppText variant="labelMd" style={styles.requiredStar}>
+              {' *'}
+            </AppText>
+          )}
+        </AppText>
+      ) : null}
       <View style={[styles.inputWrapper, error ? styles.inputError : null, inputWrapperStyle]}>
         {leftIcon ? <View style={styles.iconContainer}>{leftIcon}</View> : null}
         {prefix ? (
@@ -54,6 +69,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
   label: {
     color: colors.text.primary,
     marginBottom: spacing.xs,
+  },
+  requiredStar: {
+    color: colors.status.danger,
+    fontWeight: '700',
   },
   inputWrapper: {
     flexDirection: 'row',

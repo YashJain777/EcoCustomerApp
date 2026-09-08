@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { Header } from '@shared/components/molecules/Header';
 import { Card } from '@shared/components/atoms/Card';
 import { AppIcon } from '@shared/components/atoms/Icon';
+import { AppText } from '@shared/components/atoms/AppText';
 import { EmptyState } from '@shared/components/molecules/EmptyState';
 import { spacing, radius, useTheme, getCommonStyles } from '@theme/index';
 import { cmsApi, CmsStaticPage } from '@infrastructure/api/cmsApi';
@@ -58,9 +59,9 @@ export const TermsConditionsScreen = ({ navigation }: any) => {
       {errorMsg && (
         <View style={common.errorBanner}>
           <AppIcon name="alert-circle-outline" size="sm" color={colors.status.danger} />
-          <Text style={common.errorText}>{errorMsg}</Text>
+          <AppText variant="caption" style={common.errorText}>{errorMsg}</AppText>
           <TouchableOpacity onPress={fetchTerms}>
-            <Text style={common.retryText}>Retry</Text>
+            <AppText variant="caption" style={common.retryText}>Retry</AppText>
           </TouchableOpacity>
         </View>
       )}
@@ -68,7 +69,7 @@ export const TermsConditionsScreen = ({ navigation }: any) => {
       {loading && !refreshing ? (
         <View style={common.loaderCenter}>
           <ActivityIndicator size="large" color={colors.primary.main} />
-          <Text style={common.loadingText}>Fetching terms & conditions...</Text>
+          <AppText variant="bodySm" style={common.loadingText}>Fetching terms & conditions...</AppText>
         </View>
       ) : (
         <ScrollView
@@ -89,9 +90,9 @@ export const TermsConditionsScreen = ({ navigation }: any) => {
                 <View style={styles.heroIconBox}>
                   <AppIcon name="document-text-outline" size={36} color={colors.primary.main} />
                 </View>
-                <Text style={styles.pageTitle}>{page.title || 'Terms & Conditions'}</Text>
+                <AppText variant="headingLg" color="textPrimary" style={styles.pageTitle}>{page.title || 'Terms & Conditions'}</AppText>
                 {page.seoDescription ? (
-                  <Text style={styles.seoDescription}>{page.seoDescription}</Text>
+                  <AppText variant="bodyMd" color="textSecondary" style={styles.seoDescription}>{page.seoDescription}</AppText>
                 ) : null}
               </Card>
 
