@@ -19,4 +19,10 @@ export const notificationApi = {
       `/v1/notifications/${id}/read`
     );
   },
+
+  markAllAsRead: async (): Promise<ApiResponse<{ count: number }>> => {
+    return await axiosInstance.post<any, ApiResponse<{ count: number }>>(
+      '/v1/notifications/read-all'
+    );
+  },
 };

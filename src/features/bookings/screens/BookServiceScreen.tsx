@@ -45,11 +45,11 @@ interface TimeSlot {
 }
 
 const BASE_TIME_SLOTS: TimeSlot[] = [
-  { label: '09:30 AM', hours: 9, minutes: 30 },
-  { label: '11:30 AM', hours: 11, minutes: 30 },
-  { label: '02:00 PM', hours: 14, minutes: 0 },
-  { label: '04:30 PM', hours: 16, minutes: 30 },
-  { label: '06:30 PM', hours: 18, minutes: 30 },
+  { label: '09:00 AM - 11:00 AM', hours: 9, minutes: 0 },
+  { label: '11:00 AM - 01:00 PM', hours: 11, minutes: 0 },
+  { label: '01:00 PM - 03:00 PM', hours: 13, minutes: 0 },
+  { label: '03:00 PM - 05:00 PM', hours: 15, minutes: 0 },
+  { label: '05:00 PM - 07:00 PM', hours: 17, minutes: 0 },
 ];
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -135,6 +135,27 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
           initialAddress = addrList.find((a) => a.isDefault) || addrList[0];
           if (initialAddress?.id) {
             setSelectedAddressId(initialAddress.id);
+          }
+        } else {
+          try {
+            const profileRes = await customerApi.getProfile();
+            if (profileRes?.data && (profileRes.data.address || (profileRes.data as any).city)) {
+              const fallbackAddr: CustomerAddress = {
+                id: 'profile-default',
+                label: 'Home Address',
+                address: profileRes.data.address || 'Registered Address',
+                cityId: (profileRes.data as any).cityId || profileRes.data.city?.id,
+                cityName: typeof profileRes.data.city === 'string' ? profileRes.data.city : profileRes.data.city?.name,
+                pinCode: profileRes.data.pinCode,
+                isDefault: true,
+                addressType: 'HOME',
+              };
+              setAddresses([fallbackAddr]);
+              setSelectedAddressId(fallbackAddr.id!);
+              initialAddress = fallbackAddr;
+            }
+          } catch (_e) {
+            // Ignore fallback gracefully
           }
         }
 
@@ -382,19 +403,55 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
     return list;
   }, [today]);
 
-  // Available Time Slots for Selected Date (filters past times if date is Today)
+  const [dynamicSlots, setDynamicSlots] = useState<Array<{ slot: string; available: boolean }> | null>(null);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (bookingMode === 'FREELANCER' && selectedFreelancerId) {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      bookingApi.getMechanicSlots(selectedFreelancerId, dateStr)
+        .then((res) => {
+          if (isSubscribed && res?.data && Array.isArray(res.data)) {
+            setDynamicSlots(res.data);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) setDynamicSlots(null);
+        });
+    } else {
+      setDynamicSlots(null);
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [bookingMode, selectedFreelancerId, selectedDate]);
+
+  // Available Time Slots for Selected Date (filters past times if date is Today and applies dynamic slots)
   const availableTimeSlots = useMemo(() => {
     const isSelectedToday = isSameDay(selectedDate, today);
-    if (!isSelectedToday) return BASE_TIME_SLOTS;
-
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-    return BASE_TIME_SLOTS.filter((slot) => {
-      const slotMinutes = slot.hours * 60 + slot.minutes;
-      return slotMinutes > nowMinutes + 30; // 30 mins lead time
+    return BASE_TIME_SLOTS.map((slot) => {
+      let isAvailable = true;
+      if (isSelectedToday) {
+        const slotMinutes = slot.hours * 60 + slot.minutes;
+        if (slotMinutes <= nowMinutes + 30) {
+          isAvailable = false;
+        }
+      }
+      if (dynamicSlots && dynamicSlots.length > 0) {
+        const matchingDyn = dynamicSlots.find((ds) => ds.slot === slot.label);
+        if (matchingDyn && matchingDyn.available === false) {
+          isAvailable = false;
+        }
+      }
+      return {
+        ...slot,
+        isAvailable,
+      };
     });
-  }, [selectedDate, today]);
+  }, [selectedDate, today, dynamicSlots]);
 
   const productOptions: SelectOption[] = useMemo(() => {
     return products.map((p) => {
@@ -462,14 +519,14 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
   const shopOptions: SelectOption[] = useMemo(() => {
     return shops.map((s) => {
       const distText = s.distanceKm !== undefined ? ` • 📍 ${s.distanceKm} km` : '';
+      const ownerLabel = s.ownerName ? ` (Owner: ${s.ownerName})` : '';
+      const priceVal = s.offeredPrice !== undefined ? s.offeredPrice : (s.price !== undefined ? s.price : 499);
       return {
-        label: s.shopName,
+        label: `${s.shopName}${ownerLabel}`,
         value: s.id,
         sublabel: isUnderWarranty
           ? `Authorized Selling Shopkeeper • ₹0 (Warranty Claim)${distText}`
-          : s.offeredPrice !== undefined
-          ? `Standard Visit Fee: ₹${s.offeredPrice}${distText}`
-          : undefined,
+          : `Standard Visit Fee: ₹${priceVal}${distText}`,
         icon: 'storefront-outline',
       };
     });
@@ -640,6 +697,8 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
           description: description.trim(),
           agreedPrice: agreedPrice ?? 0,
           scheduledAt: scheduledIso,
+          preferredTimeSlot: chosenSlot.label,
+          serviceAddress: selectedAddress?.address,
         });
       }
 
@@ -892,6 +951,107 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
               </>
             )}
 
+            {/* Selected Provider Summary Card (Task 20) */}
+            {bookingMode === 'SHOPKEEPER' && selectedShop ? (
+              <Card style={styles.selectedProviderCard} padding="md" variant="elevated">
+                <View style={styles.selectedProviderTop}>
+                  <View style={styles.providerAvatarBox}>
+                    <AppIcon name="storefront" size="md" color={colors.primary.main} />
+                  </View>
+                  <View style={styles.flex1}>
+                    <View style={styles.nameRow}>
+                      <AppText variant="headingSm" color="textPrimary" numberOfLines={1} style={styles.boldText}>
+                        {selectedShop.shopName}
+                      </AppText>
+                      <Badge label="Verified Center" variant="primary" style={styles.typeBadge} />
+                    </View>
+
+                    {selectedShop.ownerName ? (
+                      <AppText variant="caption" color="primary" style={styles.ownerText}>
+                        Owner: {selectedShop.ownerName}
+                      </AppText>
+                    ) : null}
+
+                    {selectedShop.address ? (
+                      <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                        📍 {selectedShop.address}{selectedShop.city ? `, ${selectedShop.city}` : ''}
+                      </AppText>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={styles.providerMetaRow}>
+                  {selectedShop.rating ? (
+                    <View style={styles.ratingBadge}>
+                      <AppIcon name="star" size="xs" color={colors.status.warning} />
+                      <AppText variant="mono" style={styles.ratingText}>
+                        {selectedShop.rating.toFixed(1)}
+                      </AppText>
+                    </View>
+                  ) : null}
+
+                  <View style={[styles.availabilityPill, selectedShop.isAvailable === false && styles.availabilityPillBusy]}>
+                    <View style={selectedShop.isAvailable !== false ? styles.onlineDot : styles.busyDot} />
+                    <AppText variant="caption" style={selectedShop.isAvailable !== false ? styles.onlineText : styles.busyText}>
+                      {selectedShop.availabilityStatus || (selectedShop.isAvailable !== false ? 'Available' : 'Offline')}
+                    </AppText>
+                  </View>
+
+                  <AppText variant="caption" color="textSecondary" style={styles.feeText}>
+                    Visit Charge: {isUnderWarranty ? '₹0 Free' : `₹${selectedShop.price || agreedPrice}`}
+                  </AppText>
+                </View>
+              </Card>
+            ) : bookingMode === 'FREELANCER' && selectedFreelancer ? (
+              <Card style={styles.selectedProviderCard} padding="md" variant="elevated">
+                <View style={styles.selectedProviderTop}>
+                  <View style={styles.providerAvatarBox}>
+                    <AppIcon name="person" size="md" color={colors.category.orangeIcon} />
+                  </View>
+                  <View style={styles.flex1}>
+                    <View style={styles.nameRow}>
+                      <AppText variant="headingSm" color="textPrimary" numberOfLines={1} style={styles.boldText}>
+                        {selectedFreelancer.name}
+                      </AppText>
+                      <Badge label="Freelancer" variant="neutral" style={styles.typeBadge} />
+                    </View>
+
+                    <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                      {selectedFreelancer.specialization || 'Certified Field Technician'}
+                    </AppText>
+                  </View>
+                </View>
+
+                <View style={styles.providerMetaRow}>
+                  {selectedFreelancer.rating ? (
+                    <View style={styles.ratingBadge}>
+                      <AppIcon name="star" size="xs" color={colors.status.warning} />
+                      <AppText variant="mono" style={styles.ratingText}>
+                        {selectedFreelancer.rating.toFixed(1)}
+                      </AppText>
+                    </View>
+                  ) : null}
+
+                  <View style={[styles.availabilityPill, selectedFreelancer.isAvailable === false && styles.availabilityPillBusy]}>
+                    <View style={selectedFreelancer.isAvailable !== false ? styles.onlineDot : styles.busyDot} />
+                    <AppText variant="caption" style={selectedFreelancer.isAvailable !== false ? styles.onlineText : styles.busyText}>
+                      {selectedFreelancer.availabilityStatus || (selectedFreelancer.isAvailable !== false ? 'Available' : 'Busy')}
+                    </AppText>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('MechanicDetailScreen', { specialist: selectedFreelancer, mechanicId: selectedFreelancer.id })}
+                    activeOpacity={0.7}
+                    style={styles.viewProfileBtnWrap}
+                  >
+                    <AppText variant="caption" color="primary" style={styles.viewProfileLink}>
+                      View Profile & Reviews →
+                    </AppText>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            ) : null}
+
 
             {/* 3. Service Type Dropdown */}
             {serviceTypes.length > 0 && (
@@ -1061,23 +1221,29 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
               <View style={styles.slotsRow}>
                 {availableTimeSlots.map((slot, index) => {
                   const isSelected = selectedTimeSlotIndex === index;
+                  const isSlotDisabled = slot.isAvailable === false;
                   return (
                     <TouchableOpacity
                       key={index}
-                      style={[styles.slotChip, isSelected && styles.selectedSlotChip]}
+                      disabled={isSlotDisabled}
+                      style={[
+                        styles.slotChip,
+                        isSelected && styles.selectedSlotChip,
+                        isSlotDisabled && styles.disabledSlotChip,
+                      ]}
                       onPress={() => setSelectedTimeSlotIndex(index)}
                       activeOpacity={0.7}
                     >
                       <AppIcon
-                        name="time-outline"
+                        name={isSlotDisabled ? 'close-circle-outline' : 'time-outline'}
                         size="xs"
-                        color={isSelected ? colors.text.inverse : colors.text.secondary}
+                        color={isSlotDisabled ? colors.text.muted : isSelected ? colors.text.inverse : colors.text.secondary}
                       />
                       <AppText
                         variant="caption"
-                        style={isSelected ? styles.slotTextSelected : styles.slotText}
+                        style={isSlotDisabled ? styles.slotTextDisabled : isSelected ? styles.slotTextSelected : styles.slotText}
                       >
-                        {slot.label}
+                        {slot.label} {isSlotDisabled ? '(Unavailable)' : ''}
                       </AppText>
                     </TouchableOpacity>
                   );
@@ -1449,5 +1615,121 @@ const makeStyles = (colors: any) =>
     flex1Ml8: {
       flex: 1,
       marginLeft: spacing.sm,
+    },
+    selectedProviderCard: {
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface || '#FFFFFF',
+      borderWidth: 1,
+      borderColor: colors.border.light,
+      ...shadows.small,
+    },
+    selectedProviderTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    providerAvatarBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.primary.light || '#EEF0FF',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.sm,
+    },
+    ownerText: {
+      fontWeight: '600',
+      color: colors.primary.main,
+      marginTop: 2,
+    },
+    providerMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      paddingTop: spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: colors.border.light,
+    },
+    feeText: {
+      fontWeight: '700',
+      color: colors.text.primary,
+      marginLeft: 'auto',
+    },
+    viewProfileBtnWrap: {
+      marginLeft: 'auto',
+    },
+    viewProfileLink: {
+      fontWeight: '700',
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    typeBadge: {
+      marginLeft: spacing.xs,
+    },
+    ratingBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.background.paper || '#F8FAFC',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.xs,
+      gap: 3,
+      borderWidth: 1,
+      borderColor: colors.border.light,
+    },
+    ratingText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text.primary,
+    },
+    availabilityPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.status?.successBg || '#ECFDF5',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: radius.pill,
+      gap: 5,
+    },
+    availabilityPillBusy: {
+      backgroundColor: colors.status?.neutralBg || '#F1F5F9',
+    },
+    onlineDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.status?.success || '#10B981',
+    },
+    busyDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.text?.muted || '#94A3B8',
+    },
+    onlineText: {
+      color: colors.status?.success || '#10B981',
+      fontWeight: '700',
+      fontSize: 11,
+    },
+    busyText: {
+      color: colors.text?.secondary || '#64748B',
+      fontWeight: '600',
+      fontSize: 11,
+    },
+    disabledSlotChip: {
+      opacity: 0.5,
+      backgroundColor: colors.background.default || '#F8FAFC',
+      borderColor: colors.border.light,
+    },
+    slotTextDisabled: {
+      color: colors.text.muted,
+      textDecorationLine: 'line-through',
+      marginLeft: 4,
     },
   });

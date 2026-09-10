@@ -7,6 +7,7 @@ import { ProductDetailScreen } from '@features/products/screens/ProductDetailScr
 import { MyProductsScreen } from '@features/products/screens/MyProductsScreen';
 import { CustomerQRScanScreen } from '@features/products/screens/CustomerQRScanScreen';
 import { BookServiceScreen } from '@features/bookings/screens/BookServiceScreen';
+import { MechanicDetailScreen } from '@features/bookings/screens/MechanicDetailScreen';
 import { ExternalProductBookingScreen } from '@features/bookings/screens/ExternalProductBookingScreen';
 import { MyComplaintsScreen } from '@features/complaints/screens/MyComplaintsScreen';
 import { ComplaintDetailScreen } from '@features/complaints/screens/ComplaintDetailScreen';
@@ -39,6 +40,7 @@ export const AppNavigator = () => {
         <Stack.Screen name="ProductDetailScreen" component={ProductDetailScreen} />
         <Stack.Screen name="CustomerQRScanScreen" component={CustomerQRScanScreen} />
         <Stack.Screen name="BookServiceScreen" component={BookServiceScreen} />
+        <Stack.Screen name="MechanicDetailScreen" component={MechanicDetailScreen} />
         <Stack.Screen name="ExternalProductBookingScreen" component={ExternalProductBookingScreen} />
         <Stack.Screen name="MyComplaintsScreen" component={MyComplaintsScreen} />
         <Stack.Screen name="BookingsScreenTab" component={MyComplaintsScreen} />

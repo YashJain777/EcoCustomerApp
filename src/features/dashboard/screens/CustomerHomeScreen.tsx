@@ -131,7 +131,13 @@ export const CustomerHomeScreen = ({ navigation }: any) => {
       0,
   };
 
-  const customerName = profile?.name || (profile as any)?.fullName || '';
+  const customerName =
+    profile?.fullName ||
+    (profile as any)?.user?.fullName ||
+    profile?.name ||
+    dashboardData?.user?.fullName ||
+    (dashboardData as any)?.customerName ||
+    '';
   const primaryActiveTicket = activeTickets.length > 0 ? activeTickets[0] : null;
 
   return (

@@ -268,17 +268,14 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
   const isPending = status === 'PENDING' || status === 'OPEN' || status === 'PENDING_ACCEPTANCE';
   const isCancelled = status === 'CANCELLED';
 
-  const createdAtFormatted = formatStandardDate(ticketData?.createdAt);
-  const preferredSlotFormatted = ticketData?.preferredSlot ? formatStandardDate(ticketData.preferredSlot) : null;
-
-  // 2. Extracted Nested Objects & Relations
+  // 1. Extracted Nested Objects & Relations
   const customer = ticketData?.customer;
   const shopkeeper = ticketData?.shopkeeper;
   const complaintType = ticketData?.complaintType;
   const serviceType = ticketData?.serviceType;
   const saleItem = ticketData?.saleItem;
 
-  // 3. Service Jobs, Visits & Parts
+  // 2. Service Jobs, Visits & Parts
   const serviceJobs: ComplaintServiceJob[] = Array.isArray(ticketData?.serviceJobs) ? ticketData.serviceJobs : [];
   const primaryJob: ComplaintServiceJob | null = serviceJobs.length > 0 ? serviceJobs[0] : null;
 
@@ -288,6 +285,44 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
       : serviceJobs.flatMap((j) => j.visits || []);
 
   const partsList: any[] = visitsList.flatMap((v: any) => v.parts || v.partsReplaced || []);
+  const primaryVisit: any = visitsList?.[0] || null;
+
+  // 3. Appointment Slot & Booking Date Derivations (Industry Standard)
+  const createdAtFormatted = formatStandardDate(ticketData?.createdAt);
+
+  let preferredSlotFormatted: string | null = null;
+  let isImmediateSlot = false;
+
+  if (ticketData?.preferredSlot && typeof ticketData.preferredSlot === 'string') {
+    if (ticketData.preferredSlot.includes('•')) {
+      const parts = ticketData.preferredSlot.split('•').map((p) => p.trim());
+      const datePart = formatStandardDate(parts[0], false);
+      preferredSlotFormatted = `${datePart} • ${parts[1]}`;
+    } else {
+      preferredSlotFormatted = formatStandardDate(ticketData.preferredSlot, true);
+    }
+  } else if (ticketData?.preferredVisitDate) {
+    const formattedDateOnly = formatStandardDate(ticketData.preferredVisitDate, false);
+    if (ticketData?.preferredTimeSlot) {
+      preferredSlotFormatted = `${formattedDateOnly} • ${ticketData.preferredTimeSlot}`;
+    } else {
+      preferredSlotFormatted = formatStandardDate(ticketData.preferredVisitDate, true);
+    }
+  } else if (ticketData?.preferredTimeSlot) {
+    preferredSlotFormatted = ticketData.preferredTimeSlot;
+  } else if (ticketData?.scheduledAt) {
+    preferredSlotFormatted = formatStandardDate(ticketData.scheduledAt, true);
+  } else if (primaryVisit?.visitDate) {
+    preferredSlotFormatted = formatStandardDate(primaryVisit.visitDate, true);
+  } else if (ticketData?.description && /\[Preferred:\s*([^\]]+)\]/i.test(ticketData.description)) {
+    const match = ticketData.description.match(/\[Preferred:\s*([^\]]+)\]/i);
+    preferredSlotFormatted = match ? match[1] : null;
+  }
+
+  if (!preferredSlotFormatted || preferredSlotFormatted === 'N/A') {
+    isImmediateSlot = true;
+    preferredSlotFormatted = 'Immediate / ASAP (Standard Window)';
+  }
 
   // 4. Technician Information
   const mechanicObj =
@@ -322,10 +357,24 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     ? Number(ticketData.invoice.totalInvoiceAmount)
     : calculatedTotal;
 
-  // Active OTP code if available
-  const activeOtpCode =
-    ticketData?.otpCode ||
-    visitsList.find((v: any) => v.otpCode && !v.otpVerified)?.otpCode ||
+  // 6. Dual Service Verification Security OTPs (Industry Standard)
+  const isStartOtpVerified = Boolean(
+    primaryVisit?.otpVerified ||
+    ticketData?.startOtpVerified ||
+    (status !== 'PENDING' && status !== 'OPEN' && status !== 'PENDING_ACCEPTANCE' && status !== 'ASSIGNED')
+  );
+
+  const startOtpCode =
+    ticketData?.startOtp ||
+    primaryVisit?.startOtp ||
+    null;
+
+  const isCompletionOtpVerified =
+    isResolved || Boolean(ticketData?.completionOtpVerified || primaryVisit?.completionOtpVerified);
+
+  const completionOtpCode =
+    ticketData?.completionOtp ||
+    primaryVisit?.completionOtp ||
     null;
 
   const handleCancelTicket = () => {
@@ -552,37 +601,44 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                   {type === 'INSTALLATION' ? 'Installation Notes' : 'Issue Description'}
                 </AppText>
                 <AppText variant="bodyMd" color="textPrimary" style={styles.descriptionText}>
-                  {ticketData?.cleanDescription || ticketData?.description || ticketData?.rawDescription || issueTitle}
+                  {ticketData?.description || issueTitle}
                 </AppText>
               </View>
             </View>
 
-            {/* Preferred / Scheduled Appointment Slot or Creation Date */}
-            {preferredSlotFormatted ? (
-              <View style={styles.infoRow}>
-                <AppIcon name="calendar-outline" size="sm" color={colors.category.orangeIcon} />
-                <View style={styles.infoContent}>
+            {/* Preferred / Scheduled Appointment Slot */}
+            <View style={styles.infoRow}>
+              <AppIcon name="calendar-outline" size="sm" color={colors.category.orangeIcon} />
+              <View style={styles.infoContent}>
+                <View style={styles.slotTitleRow}>
                   <AppText variant="caption" color="textMuted">
                     Appointment Slot
                   </AppText>
-                  <AppText variant="bodyMd" color="textPrimary" style={styles.boldText}>
-                    {preferredSlotFormatted}
-                  </AppText>
+                  {isImmediateSlot && (
+                    <Badge
+                      label="ASAP Window"
+                      variant="primary"
+                    />
+                  )}
                 </View>
+                <AppText variant="bodyMd" color="textPrimary" style={styles.boldText}>
+                  {preferredSlotFormatted}
+                </AppText>
               </View>
-            ) : (
-              <View style={styles.infoRow}>
-                <AppIcon name="time-outline" size="sm" color={colors.text.muted} />
-                <View style={styles.infoContent}>
-                  <AppText variant="caption" color="textMuted">
-                    Created On
-                  </AppText>
-                  <AppText variant="bodyMd" color="textSecondary">
-                    {createdAtFormatted}
-                  </AppText>
-                </View>
+            </View>
+
+            {/* Request Placed On (Creation Date) */}
+            <View style={styles.infoRow}>
+              <AppIcon name="time-outline" size="sm" color={colors.text.muted} />
+              <View style={styles.infoContent}>
+                <AppText variant="caption" color="textMuted">
+                  Request Placed On
+                </AppText>
+                <AppText variant="bodyMd" color="textSecondary">
+                  {createdAtFormatted}
+                </AppText>
               </View>
-            )}
+            </View>
 
             {/* Warranty Badge Banner */}
             <View style={styles.warrantyRow}>
@@ -602,26 +658,132 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
             </View>
           </Card>
 
-          {/* Secure Completion OTP Card (if active code present and not closed) */}
-          {activeOtpCode && !isClosed && (
-            <Card style={styles.otpCard} padding="md">
-              <View style={styles.otpHeaderRow}>
-                <View style={styles.otpIconThumb}>
-                  <AppIcon name="key-outline" size="sm" color={colors.primary.main} />
+          {/* Dual Service Security Verification OTP Card (Industry Standard) */}
+          {!isCancelled && (startOtpCode || completionOtpCode) && (
+            <Card style={styles.dualOtpCard} padding="md">
+              {/* Header */}
+              <View style={styles.dualOtpHeaderRow}>
+                <View style={styles.dualOtpHeaderThumb}>
+                  <AppIcon name="shield-checkmark-outline" size="sm" color={colors.primary.main} />
                 </View>
-                <View style={styles.otpTitleGroup}>
-                  <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
-                    Service Completion Verification OTP
+                <View style={styles.dualOtpHeaderContent}>
+                  <AppText variant="labelLg" color="textPrimary" style={styles.boldText}>
+                    Doorstep Service Verification
                   </AppText>
                   <AppText variant="caption" color="textMuted">
-                    Share this code with technician upon job completion
+                    Two-step security codes for safe doorstep fulfillment
                   </AppText>
                 </View>
               </View>
 
-              <View style={styles.otpCodeContainer}>
-                <AppText variant="displayMd" color="primary" style={styles.otpText}>
-                  {activeOtpCode}
+              {/* Step 1: Start Service OTP */}
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepTopRow}>
+                  <View style={styles.otpStepLabelGroup}>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                      1. Start Service OTP
+                    </AppText>
+                    <AppText variant="caption" color="textMuted" style={styles.otpStepDesc}>
+                      {isStartOtpVerified
+                        ? 'Verified by technician upon arrival at doorstep'
+                        : 'Share with technician when they arrive to begin work'}
+                    </AppText>
+                  </View>
+                  <Badge
+                    label={isStartOtpVerified ? 'VERIFIED ✓' : 'SHARE ON ARRIVAL'}
+                    variant={isStartOtpVerified ? 'success' : 'primary'}
+                  />
+                </View>
+
+                {startOtpCode && (
+                  <View style={isStartOtpVerified ? styles.otpCodeBoxVerified : styles.otpCodeBoxActive}>
+                    <AppText
+                      variant="headingLg"
+                      style={isStartOtpVerified ? styles.otpCodeTextVerified : styles.otpCodeTextPrimary}
+                    >
+                      {startOtpCode.split('').join('  ')}
+                    </AppText>
+                    {isStartOtpVerified && (
+                      <View style={styles.otpVerifiedIndicator}>
+                        <AppIcon name="checkmark-circle" size="sm" color={colors.status.success} />
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* Divider */}
+              <View style={styles.dualOtpDivider} />
+
+              {/* Step 2: Completion Service OTP */}
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepTopRow}>
+                  <View style={styles.otpStepLabelGroup}>
+                    <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                      2. Completion Service OTP
+                    </AppText>
+                    <AppText variant="caption" color="textMuted" style={styles.otpStepDesc}>
+                      {isCompletionOtpVerified
+                        ? 'Job completed & signed off successfully'
+                        : status === 'IN_PROGRESS'
+                        ? 'Share ONLY after technician finishes work & you test appliance'
+                        : 'Keep ready. Required once technician completes repairs'}
+                    </AppText>
+                  </View>
+                  <Badge
+                    label={
+                      isCompletionOtpVerified
+                        ? 'COMPLETED ✓'
+                        : status === 'IN_PROGRESS'
+                        ? 'ACTIVE • SHARE AFTER WORK'
+                        : 'PENDING START'
+                    }
+                    variant={
+                      isCompletionOtpVerified
+                        ? 'success'
+                        : status === 'IN_PROGRESS'
+                        ? 'warning'
+                        : 'neutral'
+                    }
+                  />
+                </View>
+
+                {completionOtpCode && (
+                  <View
+                    style={
+                      isCompletionOtpVerified
+                        ? styles.otpCodeBoxVerified
+                        : status === 'IN_PROGRESS'
+                        ? styles.otpCodeBoxWarning
+                        : styles.otpCodeBoxNeutral
+                    }
+                  >
+                    <AppText
+                      variant="headingLg"
+                      style={
+                        isCompletionOtpVerified
+                          ? styles.otpCodeTextVerified
+                          : status === 'IN_PROGRESS'
+                          ? styles.otpCodeTextWarning
+                          : styles.otpCodeTextNeutral
+                      }
+                    >
+                      {completionOtpCode.split('').join('  ')}
+                    </AppText>
+                    {isCompletionOtpVerified && (
+                      <View style={styles.otpVerifiedIndicator}>
+                        <AppIcon name="checkmark-circle" size="sm" color={colors.status.success} />
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* Security Advisory Bar */}
+              <View style={styles.dualOtpSecurityBar}>
+                <AppIcon name="lock-closed-outline" size="xs" color={colors.text.muted} />
+                <AppText variant="caption" color="textMuted" style={styles.securityBarText}>
+                  For your security, never share OTPs over phone calls or prior to testing.
                 </AppText>
               </View>
             </Card>
@@ -1414,39 +1576,143 @@ const makeStyles = (colors: any, bottomInset: number) => {
       flex: 1,
       color: colors.text.muted,
     },
-    otpCard: {
-      backgroundColor: colors.primary.light,
-      borderColor: colors.primary.main,
+    slotTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    dualOtpCard: {
+      backgroundColor: colors.background.paper,
+      borderColor: colors.border.light || colors.neutral[200],
       borderWidth: 1,
       marginBottom: spacing.md,
+      borderRadius: radius.lg,
     },
-    otpHeaderRow: {
+    dualOtpHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.sm,
+      marginBottom: spacing.sm,
     },
-    otpIconThumb: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.background.paper,
+    dualOtpHeaderThumb: {
+      width: 38,
+      height: 38,
+      borderRadius: radius.md,
+      backgroundColor: colors.primary.light,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    otpTitleGroup: {
+    dualOtpHeaderContent: {
       flex: 1,
     },
-    otpCodeContainer: {
-      backgroundColor: colors.background.paper,
+    otpStepCard: {
+      marginTop: spacing.xs,
+    },
+    otpStepTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    otpStepLabelGroup: {
+      flex: 1,
+    },
+    otpStepDesc: {
+      marginTop: 2,
+      lineHeight: 16,
+    },
+    otpCodeBoxActive: {
+      backgroundColor: colors.primary.light,
+      borderColor: colors.primary.main,
+      borderWidth: 1.5,
       borderRadius: radius.md,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: spacing.sm,
+      marginTop: 6,
+      position: 'relative',
     },
-    otpText: {
-      letterSpacing: 8,
+    otpCodeBoxWarning: {
+      backgroundColor: colors.status.warningBg,
+      borderColor: colors.status.warning,
+      borderWidth: 1.5,
+      borderRadius: radius.md,
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+      position: 'relative',
+    },
+    otpCodeBoxVerified: {
+      backgroundColor: colors.status.successBg,
+      borderColor: colors.status.success,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+      position: 'relative',
+    },
+    otpCodeBoxNeutral: {
+      backgroundColor: colors.neutral[100],
+      borderColor: colors.neutral[300],
+      borderWidth: 1,
+      borderRadius: radius.md,
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+      position: 'relative',
+    },
+    otpCodeTextPrimary: {
+      color: colors.primary.main,
       fontWeight: '800',
+      letterSpacing: 4,
+    },
+    otpCodeTextWarning: {
+      color: colors.status.warning,
+      fontWeight: '800',
+      letterSpacing: 4,
+    },
+    otpCodeTextVerified: {
+      color: colors.status.success,
+      fontWeight: '700',
+      letterSpacing: 4,
+    },
+    otpCodeTextNeutral: {
+      color: colors.text.secondary,
+      fontWeight: '700',
+      letterSpacing: 4,
+    },
+    otpVerifiedIndicator: {
+      position: 'absolute',
+      right: 12,
+    },
+    dualOtpDivider: {
+      height: 1,
+      backgroundColor: colors.border.light || colors.neutral[200],
+      marginVertical: spacing.sm + 2,
+    },
+    dualOtpSecurityBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.neutral[100],
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+      marginTop: spacing.sm + 2,
+    },
+    securityBarText: {
+      flex: 1,
+      fontSize: 11,
+      lineHeight: 14,
     },
     sectionTitle: {
       marginBottom: spacing.xs + 2,

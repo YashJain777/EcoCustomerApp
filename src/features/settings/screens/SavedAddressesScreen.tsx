@@ -268,10 +268,18 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
         if (targetStateId) {
           const rawCities = await doLoadCities(targetStateId);
           if (result.city && rawCities && rawCities.length > 0) {
+            const cleanCity = result.city.replace(/\s+(district|division|mandal|taluka|sub-division)$/i, '').trim().toLowerCase();
+            const rawTarget = result.city.trim().toLowerCase();
             const matchedCity = rawCities.find(
-              (c: SelectOption) =>
-                c.label.toLowerCase().includes(result.city!.toLowerCase()) ||
-                result.city!.toLowerCase().includes(c.label.toLowerCase())
+              (c: SelectOption) => {
+                const cNorm = c.label.trim().toLowerCase();
+                return (
+                  cNorm === rawTarget ||
+                  cNorm === cleanCity ||
+                  cNorm.includes(cleanCity) ||
+                  cleanCity.includes(cNorm)
+                );
+              }
             );
             if (matchedCity) {
               setCityId((matchedCity as SelectOption).value);
@@ -331,12 +339,24 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
 
   const handleSave = async () => {
     setErrorMsg(null);
-    if (!houseNo.trim() && !street.trim()) {
-      setErrorMsg('Please enter house/flat or street address');
+    if (!houseNo.trim()) {
+      setErrorMsg('Please enter house / flat / building number');
       return;
     }
-    if (pinCode.trim().length < 4) {
-      setErrorMsg('Please enter a valid PIN code');
+    if (!street.trim()) {
+      setErrorMsg('Please enter street / road / area');
+      return;
+    }
+    if (!stateId.trim()) {
+      setErrorMsg('Please select a state');
+      return;
+    }
+    if (!cityId.trim()) {
+      setErrorMsg('Please select a city');
+      return;
+    }
+    if (!pinCode.trim() || !/^\d{6}$/.test(pinCode.trim())) {
+      setErrorMsg('Please enter a valid 6-digit PIN code');
       return;
     }
 
@@ -729,7 +749,7 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
             {/* Country Selector */}
             <View style={styles.gap}>
               <Select
-                label="Country"
+                label="Country *"
                 placeholder="Select country"
                 value={countryId}
                 options={countries}
@@ -749,7 +769,7 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
                 </View>
               ) : (
                 <Select
-                  label="State / Province"
+                  label="State / Province *"
                   placeholder={!countryId ? 'Select country first' : 'Select state'}
                   value={stateId}
                   options={states}
@@ -771,7 +791,7 @@ export const SavedAddressesScreen: React.FC<any> = ({ navigation }) => {
                 </View>
               ) : (
                 <Select
-                  label="City / District"
+                  label="City / District *"
                   placeholder={!stateId ? 'Select state first' : 'Select city'}
                   value={cityId}
                   options={cities}

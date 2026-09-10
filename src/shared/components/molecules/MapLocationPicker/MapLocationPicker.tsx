@@ -64,18 +64,45 @@ interface GoogleAddressComponent {
   types: string[];
 }
 
-const parseGoogleGeocodeResult = (result: any, targetLat: number, targetLng: number): GeocodedAddressResult => {
+const parseGoogleGeocodeResult = (result: any, targetLat: number, targetLng: number, allResults?: any[]): GeocodedAddressResult => {
   const components: GoogleAddressComponent[] = result.address_components || [];
-  const getComp = (type: string) => components.find((c) => c.types.includes(type))?.long_name || '';
+  const getComp = (...types: string[]) => {
+    for (const t of types) {
+      const found = components.find((c) => c.types.includes(t));
+      if (found && found.long_name) return found.long_name;
+    }
+    return '';
+  };
 
-  const streetNumber = getComp('street_number');
+  const getCompFromAll = (...types: string[]) => {
+    const direct = getComp(...types);
+    if (direct) return direct;
+    if (Array.isArray(allResults)) {
+      for (const res of allResults) {
+        if (!res?.address_components) continue;
+        for (const t of types) {
+          const match = res.address_components.find((c: any) => c.types.includes(t));
+          if (match && match.long_name) return match.long_name;
+        }
+      }
+    }
+    return '';
+  };
+
+  const streetNumber = getComp('street_number', 'premise');
   const route = getComp('route');
-  const sublocality = getComp('sublocality_level_1') || getComp('sublocality') || getComp('neighborhood');
-  const city = getComp('locality') || getComp('administrative_area_level_2');
-  const state = getComp('administrative_area_level_1');
-  const country = getComp('country');
-  const pinCode = getComp('postal_code');
-  const landmark = getComp('point_of_interest') || getComp('premise') || '';
+  const sublocality = getComp('sublocality_level_1', 'sublocality_level_2', 'neighborhood');
+  
+  let rawCity = getCompFromAll('locality', 'postal_town');
+  if (!rawCity) {
+    rawCity = getCompFromAll('administrative_area_level_2', 'administrative_area_level_3', 'sublocality_level_1');
+  }
+  const city = rawCity ? rawCity.replace(/\s+(district|division|mandal|taluka|sub-division)$/i, '').trim() : '';
+
+  const state = getCompFromAll('administrative_area_level_1');
+  const country = getCompFromAll('country') || 'India';
+  const pinCode = getCompFromAll('postal_code');
+  const landmark = getComp('point_of_interest', 'establishment', 'premise');
 
   const houseNo = streetNumber || '';
   const street = [route, sublocality].filter(Boolean).join(', ');
@@ -186,7 +213,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
             if (gData.status === 'OK' && gData.results && gData.results.length > 0) {
               const firstResult = gData.results[0];
-              const parsed = parseGoogleGeocodeResult(firstResult, targetLat, targetLng);
+              const parsed = parseGoogleGeocodeResult(firstResult, targetLat, targetLng, gData.results);
               setAddressSummary(parsed.displayName);
               setLastParsedResult(parsed);
               if (notifyParent) {

@@ -82,9 +82,11 @@ export const NotificationCenterScreen = ({ navigation }: any) => {
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, read: true, isRead: true, status: 'READ' }))
       );
-      await Promise.allSettled(unread.map((n) => notificationApi.markAsRead(n.id)));
+      await notificationApi.markAllAsRead();
     } catch (err) {
       console.error('Error marking notifications read', err);
+      // Re-fetch to sync with server on failure
+      fetchNotifications();
     }
   };
 

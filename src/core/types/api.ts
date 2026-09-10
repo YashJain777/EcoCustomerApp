@@ -72,6 +72,7 @@ export interface CustomerProfile {
   id: string;
   userId?: string;
   name: string;
+  fullName?: string;
   mobile: string;
   email?: string;
   address?: string;
@@ -81,6 +82,12 @@ export interface CustomerProfile {
     id: string;
     name: string;
     stateId?: string;
+  };
+  user?: {
+    id?: string;
+    fullName?: string;
+    mobile?: string;
+    email?: string;
   };
 }
 
@@ -135,6 +142,18 @@ export interface CustomerDashboardData {
   notificationsCount?: number;
   myProductsSummary?: DashboardProductSummary[];
   recentBookings?: DashboardRecentBooking[];
+  customerName?: string;
+  user?: {
+    id?: string;
+    fullName?: string;
+    mobile?: string;
+  };
+  customer?: {
+    id?: string;
+    fullName?: string;
+    name?: string;
+    mobile?: string;
+  };
 }
 
 // 4. Product / Appliance DTOs
@@ -251,11 +270,19 @@ export interface ScanQrResponse {
 export interface AvailableShop {
   id: string;
   shopName: string;
+  ownerName?: string;
+  mobile?: string;
+  address?: string;
+  city?: string;
+  price?: number;
+  discount?: number;
   rating?: number;
   serviceArea?: string;
   offeredPrice?: number;
   distanceKm?: number;
   isAvailable?: boolean;
+  availabilityStatus?: string;
+  busyReason?: string;
 }
 
 export interface AvailableMechanic {
@@ -267,6 +294,8 @@ export interface AvailableMechanic {
   offeredPrice?: number;
   distanceKm?: number;
   isAvailable?: boolean;
+  availabilityStatus?: string;
+  busyReason?: string;
 }
 
 export interface CreateBookingRequest {
@@ -278,6 +307,10 @@ export interface CreateBookingRequest {
   description: string;
   agreedPrice?: number;
   scheduledAt?: string;
+  preferredTimeSlot?: string;
+  serviceAddress?: string;
+  alternateMobile?: string;
+  contactPersonName?: string;
 }
 
 export interface DirectFreelancerBookingRequest {
@@ -341,6 +374,10 @@ export interface ServiceVisitLog {
   notes?: string | null;
   cost?: number;
   otpCode?: string | null;
+  startOtp?: string | null;
+  completionOtp?: string | null;
+  startOtpCode?: string | null;
+  completionOtpCode?: string | null;
   otpVerified?: boolean;
   mechanicName?: string;
   partsReplaced?: ServicePartReplaced[];
@@ -397,6 +434,10 @@ export interface ComplaintTicket {
   cleanDescription?: string;
   rawDescription?: string;
   preferredSlot?: string | null;
+  preferredVisitDate?: string | null;
+  preferredTimeSlot?: string | null;
+  scheduledAt?: string | null;
+  serviceAddress?: string | null;
   isWarranty?: boolean;
   warrantyType?: 'WARRANTY' | 'NON_WARRANTY' | string;
   agreedPrice?: number | null;
@@ -404,6 +445,12 @@ export interface ComplaintTicket {
   shopkeeperName?: string;
   type?: 'COMPLAINT' | 'INSTALLATION' | string;
   otpCode?: string | null;
+  startOtp?: string | null;
+  completionOtp?: string | null;
+  startOtpCode?: string | null;
+  completionOtpCode?: string | null;
+  startOtpVerified?: boolean;
+  completionOtpVerified?: boolean;
   complaintType?: { id: string; name: string } | null;
   serviceType?: {
     id: string;

@@ -20,6 +20,7 @@ export type RootStackParamList = {
   ProductDetailScreen: { product?: any };
   CustomerQRScanScreen: undefined;
   BookServiceScreen: undefined;
+  MechanicDetailScreen: { mechanicId?: string; specialist?: any } | undefined;
   ExternalProductBookingScreen: { initialCategoryId?: string } | undefined;
   MyComplaintsScreen: undefined;
   ComplaintDetailScreen: { ticket?: any };

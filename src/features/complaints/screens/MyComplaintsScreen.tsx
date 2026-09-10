@@ -174,7 +174,39 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
 
           const type: 'INSTALLATION' | 'COMPLAINT' = isInstallation ? 'INSTALLATION' : 'COMPLAINT';
 
-          const formattedDate = formatStandardDate(c.preferredSlot || c.createdAt);
+          let appointmentSlot: string;
+          let isScheduled = false;
+          if (c.preferredSlot && typeof c.preferredSlot === 'string') {
+            isScheduled = true;
+            if (c.preferredSlot.includes('•')) {
+              const parts = c.preferredSlot.split('•').map((p: string) => p.trim());
+              const datePart = formatStandardDate(parts[0], false);
+              appointmentSlot = `${datePart} • ${parts[1]}`;
+            } else {
+              appointmentSlot = formatStandardDate(c.preferredSlot, true);
+            }
+          } else if (c.preferredVisitDate) {
+            isScheduled = true;
+            const datePart = formatStandardDate(c.preferredVisitDate, false);
+            if (c.preferredTimeSlot) {
+              appointmentSlot = `${datePart} • ${c.preferredTimeSlot}`;
+            } else {
+              appointmentSlot = formatStandardDate(c.preferredVisitDate, true);
+            }
+          } else if (c.preferredTimeSlot) {
+            isScheduled = true;
+            appointmentSlot = c.preferredTimeSlot;
+          } else if (c.scheduledAt) {
+            isScheduled = true;
+            appointmentSlot = formatStandardDate(c.scheduledAt, true);
+          } else if (c.description && /\[Preferred:\s*([^\]]+)\]/i.test(c.description)) {
+            const match = c.description.match(/\[Preferred:\s*([^\]]+)\]/i);
+            isScheduled = true;
+            appointmentSlot = match ? match[1] : formatStandardDate(c.createdAt);
+          } else {
+            isScheduled = false;
+            appointmentSlot = 'Immediate / ASAP Window';
+          }
           const ticketNumber =
             c.ticketNumber ||
             (c.id
@@ -191,11 +223,17 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
           const shopkeeperName = c.shopkeeper?.shopName || c.shopkeeper?.ownerName;
           const mechanicName = c.assignedMechanicName || c.assignedFreelancerName || null;
 
+          const startOtp = c.startOtp || c.serviceJobs?.[0]?.visits?.[0]?.startOtp || null;
+          const completionOtp = c.completionOtp || c.serviceJobs?.[0]?.visits?.[0]?.completionOtp || null;
+          const isStartOtpVerified = Boolean(c.serviceJobs?.[0]?.visits?.[0]?.otpVerified || c.startOtpVerified);
+          const isCompletionOtpVerified = Boolean(c.serviceJobs?.[0]?.visits?.[0]?.completionOtpVerified || c.completionOtpVerified);
+
           return {
             id: c.id,
             ticketNumber,
             type,
             title: c.title,
+            description: c.description,
             issueTitle,
             appliance,
             categoryName: c.categoryName,
@@ -204,15 +242,21 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
             issueTypeName: c.issueTypeName,
             shopkeeperName,
             mechanicName,
-            preferredSlot: c.preferredSlot,
-            createdAt: c.createdAt,
+            preferredSlot: isScheduled ? appointmentSlot : null,
+            isImmediateSlot: !isScheduled,
+            appointmentSlot,
+            createdAt: formatStandardDate(c.createdAt),
             isWarranty: c.isWarranty,
             warrantyType: c.warrantyType,
             agreedPrice: c.agreedPrice,
-            date: formattedDate,
+            date: appointmentSlot,
             status: (c.status || 'OPEN').toUpperCase(),
             invoice: c.invoice,
-            visits: c.visits,
+            visits: c.visits || c.serviceJobs?.[0]?.visits || [],
+            startOtp,
+            completionOtp,
+            isStartOtpVerified,
+            isCompletionOtpVerified,
             raw: c,
           };
         });
@@ -374,32 +418,99 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
                 statusVariant={variant}
                 onPress={() => navigation.navigate('ComplaintDetailScreen', { ticket: item, id: item.id })}
                 footerContent={
-                  <View style={styles.footerRowInner}>
-                    <View style={styles.footerItem}>
-                      <AppText variant="caption" color="textMuted">
-                        {item.preferredSlot ? 'Appointment Slot' : 'Created On'}
-                      </AppText>
-                      <AppText variant="labelSm" style={styles.footerDateText}>
-                        {item.date}
-                      </AppText>
-                    </View>
-                    <View style={styles.footerItemRight}>
-                      <AppText variant="caption" color="textMuted">
-                        Technician
-                      </AppText>
-                      {item.mechanicName ? (
-                        <View style={styles.techChipRow}>
-                          <AppIcon name="person" size="xs" color={colors.primary.main} />
-                          <AppText variant="labelSm" color="primary" style={styles.footerTechText}>
-                            {item.mechanicName}
+                  <View style={styles.footerContainer}>
+                    <View style={styles.footerRowInner}>
+                      <View style={styles.footerItem}>
+                        <AppText variant="caption" color="textMuted">
+                          Appointment Slot
+                        </AppText>
+                        <View style={styles.slotValueRow}>
+                          <AppIcon
+                            name={item.isImmediateSlot ? 'flash-outline' : 'calendar-outline'}
+                            size="xs"
+                            color={item.isImmediateSlot ? colors.category.orangeIcon : colors.primary.main}
+                          />
+                          <AppText variant="labelSm" style={styles.footerDateText}>
+                            {item.appointmentSlot}
                           </AppText>
                         </View>
-                      ) : (
-                        <AppText variant="caption" color="textMuted" style={styles.footerUnassignedText}>
-                          Unassigned
+                      </View>
+                      <View style={styles.footerItemRight}>
+                        <AppText variant="caption" color="textMuted">
+                          Technician
                         </AppText>
-                      )}
+                        {item.mechanicName ? (
+                          <View style={styles.techChipRow}>
+                            <AppIcon name="person" size="xs" color={colors.primary.main} />
+                            <AppText variant="labelSm" color="primary" style={styles.footerTechText}>
+                              {item.mechanicName}
+                            </AppText>
+                          </View>
+                        ) : isResolved ? (
+                          <View style={styles.techChipRow}>
+                            <AppIcon name="checkmark-done" size="xs" color={colors.status.success} />
+                            <AppText variant="labelSm" style={styles.footerResolvedText}>
+                              Completed
+                            </AppText>
+                          </View>
+                        ) : (
+                          <View style={styles.techChipRow}>
+                            <AppIcon name="time-outline" size="xs" color={colors.status.warning} />
+                            <AppText variant="caption" color="textMuted" style={styles.footerUnassignedText}>
+                              Assigning expert...
+                            </AppText>
+                          </View>
+                        )}
+                      </View>
                     </View>
+
+                    {/* Active Doorstep Security OTP Quick Strip (Industry Standard UX) */}
+                    {!isResolved && !isCancelled && (
+                      <View style={styles.otpQuickContainer}>
+                        {!item.isStartOtpVerified && item.startOtp ? (
+                          <View style={styles.otpBannerStart}>
+                            <View style={styles.otpBannerLeft}>
+                              <AppIcon name="shield-checkmark" size="xs" color={colors.primary.main} />
+                              <AppText variant="caption" color="textMuted">
+                                Doorstep Start OTP:
+                              </AppText>
+                              <AppText variant="labelSm" style={styles.otpStartValue}>
+                                {item.startOtp}
+                              </AppText>
+                            </View>
+                            <View style={styles.otpBadgePillPrimary}>
+                              <AppText variant="caption" style={styles.otpBadgePillTextPrimary}>
+                                Share on arrival
+                              </AppText>
+                            </View>
+                          </View>
+                        ) : isInProgress && item.completionOtp && !item.isCompletionOtpVerified ? (
+                          <View style={styles.otpBannerCompletion}>
+                            <View style={styles.otpBannerLeft}>
+                              <AppIcon name="key-outline" size="xs" color={colors.status.warning} />
+                              <AppText variant="caption" color="textMuted">
+                                Completion OTP:
+                              </AppText>
+                              <AppText variant="labelSm" style={styles.otpCompletionValue}>
+                                {item.completionOtp}
+                              </AppText>
+                            </View>
+                            <View style={styles.otpBadgePillWarning}>
+                              <AppText variant="caption" style={styles.otpBadgePillTextWarning}>
+                                Share after test
+                              </AppText>
+                            </View>
+                          </View>
+                        ) : item.isStartOtpVerified && !isResolved ? (
+                          <View style={styles.otpBannerProgress}>
+                            <AppIcon name="construct-outline" size="xs" color={colors.category.emeraldIcon} />
+                            <AppText variant="caption" style={styles.otpProgressText}>
+                              Work in progress • Technician on site
+                            </AppText>
+                          </View>
+                        ) : null}
+                      </View>
+                    )}
                   </View>
                 }
               />
@@ -459,6 +570,10 @@ const makeStyles = (colors: any, bottomInset: number) => {
     listContent: {
       paddingBottom: safeBottom + 60,
     },
+    footerContainer: {
+      width: '100%',
+      gap: spacing.xs + 2,
+    },
     footerRowInner: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -468,26 +583,109 @@ const makeStyles = (colors: any, bottomInset: number) => {
     footerItem: {
       flex: 1,
     },
+    slotValueRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
     footerItemRight: {
       alignItems: 'flex-end',
     },
     footerDateText: {
       fontWeight: '700',
       color: colors.text.primary,
-      marginTop: 1,
     },
     techChipRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      marginTop: 1,
+      marginTop: 2,
     },
     footerTechText: {
       fontWeight: '700',
     },
+    footerResolvedText: {
+      fontWeight: '600',
+      color: colors.status.success,
+    },
     footerUnassignedText: {
       fontStyle: 'italic',
-      marginTop: 1,
+    },
+    otpQuickContainer: {
+      marginTop: spacing.xs,
+    },
+    otpBannerStart: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.primary.light,
+      borderRadius: radius.sm,
+      paddingVertical: 5,
+      paddingHorizontal: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.border.light,
+    },
+    otpBannerCompletion: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.status.warningBg,
+      borderRadius: radius.sm,
+      paddingVertical: 5,
+      paddingHorizontal: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.border.light,
+    },
+    otpBannerProgress: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.category.emeraldBg,
+      borderRadius: radius.sm,
+      paddingVertical: 5,
+      paddingHorizontal: spacing.sm,
+    },
+    otpProgressText: {
+      color: colors.category.emeraldIcon,
+      fontWeight: '600',
+    },
+    otpBannerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    otpStartValue: {
+      fontWeight: '800',
+      letterSpacing: 1.5,
+      color: colors.primary.main,
+    },
+    otpCompletionValue: {
+      fontWeight: '800',
+      letterSpacing: 1.5,
+      color: colors.status.warning,
+    },
+    otpBadgePillPrimary: {
+      backgroundColor: colors.primary.main,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.xs,
+    },
+    otpBadgePillTextPrimary: {
+      color: colors.text.inverse,
+      fontWeight: '700',
+      fontSize: 10,
+    },
+    otpBadgePillWarning: {
+      backgroundColor: colors.status.warning,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.xs,
+    },
+    otpBadgePillTextWarning: {
+      color: colors.text.inverse,
+      fontWeight: '700',
+      fontSize: 10,
     },
     floatingFab: {
       position: 'absolute',

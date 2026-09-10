@@ -112,11 +112,19 @@ export const bookingApi = {
           data: items.map((item: any) => ({
             id: item.shopkeeperId || item.id,
             shopName: item.shopName || item.ownerName || 'Authorized Service Center',
+            ownerName: item.ownerName || undefined,
+            mobile: item.mobile || undefined,
+            address: item.address || undefined,
+            city: item.city || undefined,
+            price: item.price !== undefined ? Number(item.price) : undefined,
+            discount: item.discount !== undefined ? Number(item.discount) : undefined,
             rating: item.rating !== undefined ? Number(item.rating) : undefined,
             serviceArea: item.city || item.serviceArea || undefined,
             offeredPrice: item.offeredPrice !== undefined ? Number(item.offeredPrice) : (item.price !== undefined ? Number(item.price) : undefined),
             distanceKm: item.distanceKm !== undefined ? Number(item.distanceKm) : undefined,
             isAvailable: item.isAvailable !== undefined ? Boolean(item.isAvailable) : true,
+            availabilityStatus: item.availabilityStatus || (item.isAvailable ? 'AVAILABLE' : 'OFFLINE'),
+            busyReason: item.busyReason || undefined,
           })),
         };
       }
@@ -275,6 +283,8 @@ export const bookingApi = {
             offeredPrice: m.offeredPrice !== undefined ? Number(m.offeredPrice) : (m.price !== undefined ? Number(m.price) : undefined),
             distanceKm: m.distanceKm !== undefined ? Number(m.distanceKm) : undefined,
             isAvailable: m.isAvailable !== undefined ? Boolean(m.isAvailable) : true,
+            availabilityStatus: m.availabilityStatus || (m.isAvailable !== false ? 'AVAILABLE' : 'BUSY'),
+            busyReason: m.busyReason || undefined,
           })),
         };
       }
@@ -285,6 +295,16 @@ export const bookingApi = {
       success: true,
       data: [],
     };
+  },
+
+  getMechanicDetails: async (mechanicId: string): Promise<ApiResponse<any>> => {
+    return await axiosInstance.get<any, ApiResponse<any>>(`/v1/customers/mechanics/${mechanicId}`);
+  },
+
+  getMechanicSlots: async (mechanicId: string, dateStr: string): Promise<ApiResponse<Array<{ slot: string; available: boolean }>>> => {
+    return await axiosInstance.get<any, ApiResponse<any>>(`/v1/customers/mechanics/${mechanicId}/slots`, {
+      params: { date: dateStr }
+    });
   },
 
   cancelBooking: async (id: string): Promise<ApiResponse<BookingDetails>> => {

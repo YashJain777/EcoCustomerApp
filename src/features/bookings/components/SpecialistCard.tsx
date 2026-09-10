@@ -17,6 +17,7 @@ export interface SpecialistCardProps {
   type: 'FREELANCER' | 'SHOPKEEPER';
   isSelected: boolean;
   onSelect: (specialist: AvailableMechanic | AvailableShop) => void;
+  onPressDetails?: (specialist: AvailableMechanic | AvailableShop) => void;
 }
 
 export const SpecialistCard: React.FC<SpecialistCardProps> = ({
@@ -24,22 +25,35 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
   type,
   isSelected,
   onSelect,
+  onPressDetails,
 }) => {
   const { theme } = useTheme();
   const colors = theme.colors;
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
-  const name = (specialist as AvailableMechanic).name || (specialist as AvailableShop).shopName || 'Technician';
+  const isShopkeeper = type === 'SHOPKEEPER';
+  const shop = specialist as AvailableShop;
+  const mechanic = specialist as AvailableMechanic;
+
+  const displayName = isShopkeeper
+    ? (shop.shopName || 'Authorized Service Center')
+    : (mechanic.name || 'Certified Technician');
+
+  const ownerName = isShopkeeper ? (shop.ownerName || undefined) : undefined;
   const rating = specialist.rating !== undefined ? specialist.rating : null;
-  const offeredPrice = specialist.offeredPrice !== undefined ? specialist.offeredPrice : null;
+  const offeredPrice = specialist.offeredPrice !== undefined ? specialist.offeredPrice : (specialist as any).price;
 
-  const specialization = (specialist as AvailableMechanic).specialization ||
-    ((specialist as AvailableShop).serviceArea ? `Service Area: ${(specialist as AvailableShop).serviceArea}` : 'Authorized Service Center');
+  const specialization = mechanic.specialization ||
+    (shop.serviceArea ? `Service Area: ${shop.serviceArea}` : 'Authorized Service Center');
 
-  const experienceYears = (specialist as AvailableMechanic).experienceYears;
+  const experienceYears = mechanic.experienceYears;
+
+  const isAvailable = specialist.isAvailable !== false;
+  const availabilityStatus = specialist.availabilityStatus || (isAvailable ? 'Available' : 'Busy / Offline');
+  const busyReason = specialist.busyReason;
 
   // Get initials for avatar
-  const initials = name
+  const initials = displayName
     .split(' ')
     .slice(0, 2)
     .map((w) => w.charAt(0))
@@ -56,7 +70,7 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
       ]}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
-      accessibilityLabel={`Select ${name}`}
+      accessibilityLabel={`Select ${displayName}`}
     >
       <View style={styles.contentRow}>
         {/* Avatar Circle */}
@@ -75,12 +89,23 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
               numberOfLines={1}
               style={[styles.name, isSelected && styles.nameSelected]}
             >
-              {name}
+              {displayName}
             </AppText>
-            {type === 'SHOPKEEPER' && (
+            {isShopkeeper && (
               <Badge label="Verified Center" variant="primary" style={styles.typeBadge} />
             )}
           </View>
+
+          {ownerName ? (
+            <AppText
+              variant="caption"
+              color="primary"
+              numberOfLines={1}
+              style={styles.ownerText}
+            >
+              Owner: {ownerName}
+            </AppText>
+          ) : null}
 
           {/* Subtitle / Specialization */}
           <AppText
@@ -127,13 +152,31 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
               </View>
             )}
 
-            <View style={styles.availabilityPill}>
-              <View style={styles.onlineDot} />
-              <AppText variant="caption" style={styles.onlineText}>
-                Available
+            <View style={[styles.availabilityPill, !isAvailable && styles.availabilityPillBusy]}>
+              <View style={isAvailable ? styles.onlineDot : styles.busyDot} />
+              <AppText variant="caption" style={isAvailable ? styles.onlineText : styles.busyText}>
+                {availabilityStatus}
               </AppText>
             </View>
           </View>
+
+          {busyReason ? (
+            <AppText variant="caption" color="textMuted" numberOfLines={1} style={styles.busyReasonText}>
+              • {busyReason}
+            </AppText>
+          ) : null}
+
+          {onPressDetails ? (
+            <TouchableOpacity
+              style={styles.viewProfileBtn}
+              onPress={() => onPressDetails(specialist)}
+              activeOpacity={0.7}
+            >
+              <AppText variant="caption" color="primary" style={styles.viewProfileText}>
+                View Profile & Reviews →
+              </AppText>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Pricing / Action Column */}
@@ -294,6 +337,40 @@ const makeStyles = (colors: any) =>
       color: colors.status.success,
       fontSize: 10,
       fontWeight: '600',
+    },
+    ownerText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.primary.main,
+      marginBottom: 2,
+    },
+    availabilityPillBusy: {
+      backgroundColor: colors.status.warningBg || '#FEF3C7',
+    },
+    busyDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.status.warning || '#F59E0B',
+    },
+    busyText: {
+      color: colors.status.warning || '#D97706',
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    busyReasonText: {
+      fontSize: 10,
+      color: colors.text.muted,
+      marginTop: 2,
+    },
+    viewProfileBtn: {
+      marginTop: 6,
+      alignSelf: 'flex-start',
+    },
+    viewProfileText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.primary.main,
     },
     pricingCol: {
       alignItems: 'flex-end',
