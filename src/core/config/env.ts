@@ -8,14 +8,14 @@
 
 const getBaseUrl = () => {
   // Live Staging URL (Uncomment to connect to production/staging server):
-  return 'https://ecosystemback.idea2reality.tech/api';
+  // return 'https://ecosystemback.idea2reality.tech/api';
 
   // Local Backend URL:
   // For physical Android devices via USB (with 'adb reverse tcp:4000 tcp:4000') and iOS/Web
-  // return 'http://localhost:4000/api';
+  return 'http://localhost:4000/api';
 };
 
-export const  ENV = {
+export const ENV = {
   // API
   API_BASE_URL: getBaseUrl(),
   API_TIMEOUT: 30_000, // 30 seconds

@@ -50,11 +50,16 @@ interface TimeSlot {
 }
 
 const BASE_TIME_SLOTS: TimeSlot[] = [
-  { label: '09:30 AM', hours: 9, minutes: 30 },
-  { label: '11:30 AM', hours: 11, minutes: 30 },
-  { label: '02:00 PM', hours: 14, minutes: 0 },
-  { label: '04:30 PM', hours: 16, minutes: 30 },
-  { label: '06:30 PM', hours: 18, minutes: 30 },
+  { label: '09:00 AM - 10:00 AM', hours: 9, minutes: 0 },
+  { label: '10:00 AM - 11:00 AM', hours: 10, minutes: 0 },
+  { label: '11:00 AM - 12:00 PM', hours: 11, minutes: 0 },
+  { label: '12:00 PM - 01:00 PM', hours: 12, minutes: 0 },
+  { label: '01:00 PM - 02:00 PM', hours: 13, minutes: 0 },
+  { label: '02:00 PM - 03:00 PM', hours: 14, minutes: 0 },
+  { label: '03:00 PM - 04:00 PM', hours: 15, minutes: 0 },
+  { label: '04:00 PM - 05:00 PM', hours: 16, minutes: 0 },
+  { label: '05:00 PM - 06:00 PM', hours: 17, minutes: 0 },
+  { label: '06:00 PM - 07:00 PM', hours: 18, minutes: 0 },
 ];
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -161,19 +166,38 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
     [route?.params?.initialCategoryId]
   );
 
-  // Initial Load (Categories & Saved Addresses)
+  // Initial Load (Categories & Saved Addresses with Profile Fallback)
   useEffect(() => {
     loadCategories(1, false, '');
 
     customerApi
       .getAddresses()
-      .then((addrRes) => {
-        if (addrRes?.success && Array.isArray(addrRes.data)) {
-          setAddresses(addrRes.data);
-          const defaultAddr = addrRes.data.find((a) => a.isDefault) || addrRes.data[0];
-          if (defaultAddr) {
-            setSelectedAddress(defaultAddr);
-          }
+      .then(async (addrRes) => {
+        let addrList: CustomerAddress[] = addrRes?.success && Array.isArray(addrRes.data) ? addrRes.data : [];
+
+        if (addrList.length === 0) {
+          try {
+            const profileRes = await customerApi.getProfile();
+            if (profileRes?.data && (profileRes.data.address || (profileRes.data as any).city)) {
+              const pData = profileRes.data;
+              const fallbackAddr: CustomerAddress = {
+                id: 'profile-default',
+                label: 'Home Address',
+                address: pData.address || 'Registered Address',
+                cityName: typeof pData.city === 'string' ? pData.city : pData.city?.name,
+                pinCode: pData.pinCode,
+                isDefault: true,
+                addressType: 'HOME',
+              };
+              addrList = [fallbackAddr];
+            }
+          } catch (_e) {}
+        }
+
+        setAddresses(addrList);
+        const defaultAddr = addrList.find((a) => a.isDefault) || addrList[0];
+        if (defaultAddr) {
+          setSelectedAddress(defaultAddr);
         }
       })
       .catch(() => {});
@@ -206,11 +230,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
       const res = await bookingApi.getServiceTypes({ categoryId: category.id });
       if (res?.success && Array.isArray(res.data)) {
         setServiceTypes(res.data);
-        if (res.data.length > 0) {
-          setSelectedServiceType(res.data[0]);
-        } else {
-          setSelectedServiceType(null);
-        }
+        setSelectedServiceType(null);
       }
     } catch (err) {
       setErrorMessage('Could not load services for this category.');
@@ -223,6 +243,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
   const fetchSpecialists = useCallback(async (categoryId: string, serviceTypeId?: string, customAddress?: CustomerAddress | null) => {
     setLoadingSpecialists(true);
     setErrorMessage(null);
+    setSelectedSpecialist(null);
     try {
       const targetAddr = customAddress !== undefined ? customAddress : selectedAddress;
       const [freeRes, shopRes] = await Promise.allSettled([
@@ -242,23 +263,17 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
 
       if (freeRes.status === 'fulfilled' && freeRes.value?.success && Array.isArray(freeRes.value.data)) {
         setFreelancers(freeRes.value.data);
-        if (specialistType === 'FREELANCER' && freeRes.value.data.length > 0) {
-          setSelectedSpecialist(freeRes.value.data[0]);
-        }
       }
 
       if (shopRes.status === 'fulfilled' && shopRes.value?.success && Array.isArray(shopRes.value.data)) {
         setShops(shopRes.value.data);
-        if (specialistType === 'SHOPKEEPER' && shopRes.value.data.length > 0) {
-          setSelectedSpecialist(shopRes.value.data[0]);
-        }
       }
     } catch (err) {
       setErrorMessage('Could not find specialists in your area.');
     } finally {
       setLoadingSpecialists(false);
     }
-  }, [specialistType, selectedAddress]);
+  }, [selectedAddress]);
 
   // Step 1: User Selects Category
   const handleSelectCategory = (cat: ProductCategory) => {
@@ -276,18 +291,14 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
     setCurrentStep(3);
   };
 
-  // Step 3: User Selects Specialist
+  // Step 3: User Selects Specialist (toggle on/off)
   const handleSelectSpecialist = (spec: AvailableMechanic | AvailableShop) => {
-    setSelectedSpecialist(spec);
+    setSelectedSpecialist((prev) => (prev?.id === spec.id ? null : spec));
   };
 
   const handleSwitchSpecialistType = (type: 'FREELANCER' | 'SHOPKEEPER') => {
     setSpecialistType(type);
-    if (type === 'FREELANCER') {
-      setSelectedSpecialist(freelancers[0] || null);
-    } else {
-      setSelectedSpecialist(shops[0] || null);
-    }
+    setSelectedSpecialist(null);
   };
 
   const handleProceedToSchedule = () => {
@@ -315,19 +326,49 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
     return list;
   }, [today]);
 
+  const [dynamicSlots, setDynamicSlots] = useState<Array<{ slot: string; available: boolean }> | null>(null);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (specialistType === 'FREELANCER' && selectedSpecialist?.id) {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      bookingApi.getMechanicSlots(selectedSpecialist.id, dateStr)
+        .then((res) => {
+          if (isSubscribed && res?.data && Array.isArray(res.data)) {
+            setDynamicSlots(res.data);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) setDynamicSlots(null);
+        });
+    } else {
+      setDynamicSlots(null);
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [specialistType, selectedSpecialist, selectedDate]);
+
   // Available Time Slots for Selected Date
   const availableTimeSlots = useMemo(() => {
     const isSelectedToday = isSameDay(selectedDate, today);
-    if (!isSelectedToday) return BASE_TIME_SLOTS;
-
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
     return BASE_TIME_SLOTS.filter((slot) => {
-      const slotMinutes = slot.hours * 60 + slot.minutes;
-      return slotMinutes > nowMinutes + 30; // 30 mins lead time
+      if (isSelectedToday) {
+        const slotMinutes = slot.hours * 60 + slot.minutes;
+        if (slotMinutes <= nowMinutes + 30) return false;
+      }
+      if (dynamicSlots && dynamicSlots.length > 0) {
+        const matchingDyn = dynamicSlots.find((ds) => ds.slot.toLowerCase().includes(slot.label.toLowerCase()) || slot.label.toLowerCase().includes(ds.slot.toLowerCase()));
+        if (matchingDyn && matchingDyn.available === false) {
+          return false;
+        }
+      }
+      return true;
     });
-  }, [selectedDate, today]);
+  }, [selectedDate, today, dynamicSlots]);
 
   // Final Submit Handler (Strictly omitting saleItemId)
   const handleSubmitBooking = async () => {
@@ -361,10 +402,33 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
       return;
     }
 
+    // Regex check for problem description: Must contain valid readable text (alphanumeric characters)
+    const descriptionRegex = /^[a-zA-Z0-9\s.,!?#'"()\-]{10,}$/;
+    if (!descriptionRegex.test(description.trim())) {
+      setValidationError('Description contains invalid special characters or symbols.');
+      return;
+    }
+
     const chosenSlot = availableTimeSlots[selectedTimeSlotIndex] || BASE_TIME_SLOTS[0];
     const scheduledDateTime = new Date(selectedDate);
     scheduledDateTime.setHours(chosenSlot.hours, chosenSlot.minutes, 0, 0);
     const scheduledIso = scheduledDateTime.toISOString();
+
+    const formattedAddress = selectedAddress
+      ? [selectedAddress.address, selectedAddress.cityName, selectedAddress.pinCode].filter(Boolean).join(', ')
+      : undefined;
+
+    if (!formattedAddress || !formattedAddress.trim()) {
+      setValidationError('Please select or provide a valid service address.');
+      return;
+    }
+
+    // Regex check for address: Must be at least 5 characters and contain letters/numbers
+    const addressRegex = /^[a-zA-Z0-9\s.,!#'"()\-]{5,}$/;
+    if (!addressRegex.test(formattedAddress.trim())) {
+      setValidationError('Service address contains invalid characters or is too short.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -377,6 +441,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
           description: description.trim(),
           scheduledAt: scheduledIso,
           preferredTimeSlot: chosenSlot.label,
+          serviceAddress: formattedAddress,
         });
       } else {
         res = await bookingApi.createBooking({
@@ -386,6 +451,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
           description: description.trim(),
           scheduledAt: scheduledIso,
           agreedPrice: selectedSpecialist.offeredPrice,
+          serviceAddress: formattedAddress,
         });
       }
 
@@ -726,8 +792,10 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
                     key={m.id}
                     specialist={m}
                     type="FREELANCER"
+                    serviceName={selectedServiceType?.name}
                     isSelected={selectedSpecialist?.id === m.id}
                     onSelect={handleSelectSpecialist}
+                    onPressDetails={(spec) => navigation.navigate('MechanicDetailScreen', { specialist: spec })}
                   />
                 ))
               )
@@ -743,8 +811,10 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
                   key={s.id}
                   specialist={s}
                   type="SHOPKEEPER"
+                  serviceName={selectedServiceType?.name}
                   isSelected={selectedSpecialist?.id === s.id}
                   onSelect={handleSelectSpecialist}
+                  onPressDetails={(spec) => navigation.navigate('MechanicDetailScreen', { specialist: spec })}
                 />
               ))
             )}
@@ -897,6 +967,7 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
                   </AppText>
                   <AppText variant="caption" color="textSecondary" numberOfLines={2}>
                     {[
+                      selectedAddress?.address,
                       selectedAddress?.houseNo,
                       selectedAddress?.street,
                       selectedAddress?.landmark,

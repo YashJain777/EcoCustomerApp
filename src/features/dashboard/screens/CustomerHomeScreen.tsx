@@ -169,7 +169,7 @@ export const CustomerHomeScreen = ({ navigation }: any) => {
               </View>
             )}
             <View style={styles.headerInfoCol}>
-              <AppText variant="headingLg" color="textPrimary" numberOfLines={1}>
+              <AppText variant="headingLg" color="textPrimary">
                 Hi, {customerName ? <AppText variant="headingLg" color="primary">{customerName}</AppText> : 'Welcome Back'}
               </AppText>
               <View style={styles.accountBadgeRow}>

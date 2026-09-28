@@ -24,7 +24,46 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
   const [error, setError] = useState('');
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
+  const verifyOtpCode = async (codeToVerify: string) => {
+    if (codeToVerify.length < 6) {
+      setError('Please enter complete 6-digit OTP code');
+      return;
+    }
+    setError('');
+    setLoading(true);
+
+    try {
+      await authApi.loginVerifyOtp({ mobile, code: codeToVerify });
+      try {
+        await authApi.selectRole('CUSTOMER');
+      } catch (roleErr) {
+        // Ignore role selection error if single role
+      }
+      setLoading(false);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTab' }],
+      });
+    } catch (err: any) {
+      setLoading(false);
+      const errorMsg =
+        err?.message ||
+        (typeof err?.error === 'string' ? err.error : err?.error?.message) ||
+        'Invalid or expired OTP code';
+      setError(errorMsg);
+    }
+  };
+
   const handleOtpChange = (text: string, index: number) => {
+    // Handle pasting full 6-digit code
+    if (text.length === 6 && /^\d+$/.test(text)) {
+      const codeArray = text.split('');
+      setOtp(codeArray);
+      if (error) setError('');
+      verifyOtpCode(text);
+      return;
+    }
+
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
@@ -33,6 +72,12 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
     // Auto-advance focus to next input box
     if (text.length > 0 && index < 5) {
       inputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit when all 6 digits are filled
+    const fullOtp = newOtp.join('');
+    if (fullOtp.length === 6) {
+      verifyOtpCode(fullOtp);
     }
   };
 
@@ -56,38 +101,13 @@ export const CustomerOtpVerifyScreen = ({ route, navigation }: any) => {
       const codeArray = hintCode.split('');
       setOtp(codeArray);
       if (error) setError('');
+      verifyOtpCode(hintCode);
     }
   };
 
-  const handleVerify = async () => {
+  const handleVerify = () => {
     const fullOtp = otp.join('');
-    if (fullOtp.length < 6) {
-      setError('Please enter complete 6-digit OTP code');
-      return;
-    }
-    setError('');
-    setLoading(true);
-
-    try {
-      await authApi.loginVerifyOtp({ mobile, code: fullOtp });
-      try {
-        await authApi.selectRole('CUSTOMER');
-      } catch (roleErr) {
-        // Ignore role selection error if single role
-      }
-      setLoading(false);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTab' }],
-      });
-    } catch (err: any) {
-      setLoading(false);
-      const errorMsg =
-        err?.message ||
-        (typeof err?.error === 'string' ? err.error : err?.error?.message) ||
-        'Invalid or expired OTP code';
-      setError(errorMsg);
-    }
+    verifyOtpCode(fullOtp);
   };
 
   return (

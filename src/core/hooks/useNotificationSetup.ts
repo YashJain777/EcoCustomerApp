@@ -63,8 +63,8 @@ export const useNotificationSetup = () => {
           try {
             await axiosInstance.post('/v1/notifications/device-token', { token: fcmToken });
             console.log('[FCM] Customer Device Token registered with backend successfully');
-          } catch (err) {
-            console.error('[FCM] Error registering token with backend:', err);
+          } catch (err: any) {
+            console.warn('[FCM] Could not register token with backend (network/offline):', err?.message || err);
           }
         }
 
@@ -83,14 +83,54 @@ export const useNotificationSetup = () => {
           console.log('[FCM] Notification tapped in background:', remoteMessage);
         });
 
-        // 7. Handle Foreground Message (Active App state)
+        // 7. Handle Foreground Message (Active App state when Customer is using app)
         unsubscribeForeground = onMessage(messaging, async (remoteMessage: any) => {
           console.log('[FCM] Foreground notification received:', remoteMessage);
-          const title = remoteMessage.notification?.title || 'New Notification 🔔';
-          const body = remoteMessage.notification?.body || '';
+          const title = remoteMessage.notification?.title || remoteMessage.data?.title || 'Notification Alert 🔔';
+          const body = remoteMessage.notification?.body || remoteMessage.data?.body || '';
+          const type = remoteMessage.data?.type || remoteMessage.data?.notificationType || 'GENERAL';
 
           if (title || body) {
-            Alert.alert(title, body);
+            // Handle Notification Enum Types dynamically while user has the app open
+            switch (type) {
+              case 'SERVICE_COMPLETED':
+                Alert.alert(
+                  title || 'Service Completed! 🎉',
+                  body || 'Your service job is completed successfully. Thank you for choosing SmartEco.',
+                  [
+                    { text: 'Later', style: 'cancel' },
+                    {
+                      text: 'Rate Service ⭐',
+                      onPress: () => {
+                        // Triggers rating flow for completed job
+                        console.log('[FCM] Customer clicked Rate Service for job:', remoteMessage.data?.jobId);
+                      },
+                    },
+                  ]
+                );
+                break;
+              case 'REVIEW_REMINDER':
+                Alert.alert(
+                  title || 'Rate Your Service ⭐',
+                  body || 'How was your experience? Tap to submit a rating & review.',
+                  [
+                    { text: 'Dismiss', style: 'cancel' },
+                    { text: 'Write Review', onPress: () => {} },
+                  ]
+                );
+                break;
+              case 'MECHANIC_ASSIGNED':
+              case 'VISIT_SCHEDULED':
+                Alert.alert(
+                  title || 'Technician Update 🛠️',
+                  body,
+                  [{ text: 'View Details', onPress: () => {} }, { text: 'OK', style: 'cancel' }]
+                );
+                break;
+              default:
+                Alert.alert(title, body);
+                break;
+            }
           }
         });
 
@@ -99,13 +139,13 @@ export const useNotificationSetup = () => {
           console.log('[FCM] Customer Token refreshed:', newToken);
           try {
             await axiosInstance.post('/v1/notifications/device-token', { token: newToken });
-          } catch (e) {
-            console.error('[FCM] Token refresh update error:', e);
+          } catch (e: any) {
+            console.warn('[FCM] Token refresh update error:', e?.message || e);
           }
         });
 
-      } catch (error) {
-        console.error('[FCM] Customer Setup failed:', error);
+      } catch (error: any) {
+        console.warn('[FCM] Customer Setup warning:', error?.message || error);
       }
     }
 

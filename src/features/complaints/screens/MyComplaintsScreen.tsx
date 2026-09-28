@@ -176,7 +176,15 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
 
           let appointmentSlot: string;
           let isScheduled = false;
-          if (c.preferredSlot && typeof c.preferredSlot === 'string') {
+          if (c.scheduledAt) {
+            isScheduled = true;
+            const formattedDateOnly = formatStandardDate(c.scheduledAt, false);
+            if (c.preferredTimeSlot) {
+              appointmentSlot = `${formattedDateOnly} • ${c.preferredTimeSlot}`;
+            } else {
+              appointmentSlot = formatStandardDate(c.scheduledAt, true);
+            }
+          } else if (c.preferredSlot && typeof c.preferredSlot === 'string') {
             isScheduled = true;
             if (c.preferredSlot.includes('•')) {
               const parts = c.preferredSlot.split('•').map((p: string) => p.trim());
@@ -195,17 +203,14 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
             }
           } else if (c.preferredTimeSlot) {
             isScheduled = true;
-            appointmentSlot = c.preferredTimeSlot;
-          } else if (c.scheduledAt) {
-            isScheduled = true;
-            appointmentSlot = formatStandardDate(c.scheduledAt, true);
+            appointmentSlot = `Scheduled • ${c.preferredTimeSlot}`;
           } else if (c.description && /\[Preferred:\s*([^\]]+)\]/i.test(c.description)) {
             const match = c.description.match(/\[Preferred:\s*([^\]]+)\]/i);
             isScheduled = true;
-            appointmentSlot = match ? match[1] : formatStandardDate(c.createdAt);
+            appointmentSlot = match ? match[1] : 'Scheduled Visit';
           } else {
             isScheduled = false;
-            appointmentSlot = 'Immediate / ASAP Window';
+            appointmentSlot = 'As per technician availability';
           }
           const ticketNumber =
             c.ticketNumber ||

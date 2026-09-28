@@ -901,7 +901,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
             </Card>
           ) : null}
 
-          {shopkeeper?.shopName ? (
+          {shopkeeper?.shopName && ((ticketData as any)?.shopkeeperId || !(ticketData as any)?.mechanicId) ? (
             <Card style={styles.dealerCard} padding="md">
               <View style={styles.dealerRow}>
                 <View style={styles.dealerIconThumb}>

@@ -253,7 +253,14 @@ export const useSubmitReview = ({
         err?.response?.data?.message ||
         err?.message ||
         'Failed to submit review. Please try again.';
-      setError(errMsg);
+
+      if (errMsg.toLowerCase().includes('already been reviewed') || errMsg.toLowerCase().includes('already reviewed')) {
+        Alert.alert('Already Reviewed', 'You have already submitted a review for this service.', [
+          { text: 'OK', onPress: () => onSuccess && onSuccess() },
+        ]);
+      } else {
+        setError(errMsg);
+      }
       return false;
     } finally {
       setIsSubmitting(false);

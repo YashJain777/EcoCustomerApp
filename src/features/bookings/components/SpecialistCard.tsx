@@ -16,6 +16,7 @@ export interface SpecialistCardProps {
   specialist: AvailableMechanic | AvailableShop;
   type: 'FREELANCER' | 'SHOPKEEPER';
   isSelected: boolean;
+  serviceName?: string;
   onSelect: (specialist: AvailableMechanic | AvailableShop) => void;
   onPressDetails?: (specialist: AvailableMechanic | AvailableShop) => void;
 }
@@ -24,6 +25,7 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
   specialist,
   type,
   isSelected,
+  serviceName,
   onSelect,
   onPressDetails,
 }) => {
@@ -47,6 +49,10 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
     (shop.serviceArea ? `Service Area: ${shop.serviceArea}` : 'Authorized Service Center');
 
   const experienceYears = mechanic.experienceYears;
+  const completedJobsCount = (specialist as any).jobsCompletedCount ||
+    (specialist as any).totalJobsCompleted ||
+    (specialist as any).completedServices ||
+    (specialist as any).jobsCount;
 
   const isAvailable = specialist.isAvailable !== false;
   const availabilityStatus = specialist.availabilityStatus || (isAvailable ? 'Available' : 'Busy / Offline');
@@ -72,6 +78,16 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
       accessibilityState={{ selected: isSelected }}
       accessibilityLabel={`Select ${displayName}`}
     >
+      {/* Service Header Row if serviceName is present */}
+      {serviceName ? (
+        <View style={styles.serviceHeaderRow}>
+          <AppIcon name="construct-outline" size="xs" color={colors.primary.main} />
+          <AppText variant="caption" color="primary" style={styles.serviceHeaderText}>
+            Service: <AppText variant="caption" color="primary" style={styles.serviceNameBold}>{serviceName}</AppText>
+          </AppText>
+        </View>
+      ) : null}
+
       <View style={styles.contentRow}>
         {/* Avatar Circle */}
         <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
@@ -91,16 +107,12 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
             >
               {displayName}
             </AppText>
-            {isShopkeeper && (
-              <Badge label="Verified Center" variant="primary" style={styles.typeBadge} />
-            )}
           </View>
 
           {ownerName ? (
             <AppText
               variant="caption"
               color="primary"
-              numberOfLines={1}
               style={styles.ownerText}
             >
               Owner: {ownerName}
@@ -111,7 +123,6 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
           <AppText
             variant="caption"
             color="textSecondary"
-            numberOfLines={1}
             style={styles.specialization}
           >
             {specialization}
@@ -143,6 +154,13 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
               </View>
             )}
 
+            <View style={styles.workPill}>
+              <AppIcon name="checkmark-done-outline" size="xs" color={colors.status.success} />
+              <AppText variant="caption" color="success" style={styles.workText}>
+                {completedJobsCount ? `${completedJobsCount} Jobs Done` : 'Verified Work'}
+              </AppText>
+            </View>
+
             {specialist.distanceKm !== undefined && (
               <View style={styles.distancePill}>
                 <AppIcon name="location-outline" size="xs" color={colors.primary.main} />
@@ -172,8 +190,9 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
               onPress={() => onPressDetails(specialist)}
               activeOpacity={0.7}
             >
-              <AppText variant="caption" color="primary" style={styles.viewProfileText}>
-                View Profile & Reviews →
+              <AppIcon name="eye-outline" size="xs" color={colors.text.inverse} />
+              <AppText variant="labelSm" style={styles.viewProfileText}>
+                View Profile & Work History →
               </AppText>
             </TouchableOpacity>
           ) : null}
@@ -181,13 +200,17 @@ export const SpecialistCard: React.FC<SpecialistCardProps> = ({
 
         {/* Pricing / Action Column */}
         <View style={styles.pricingCol}>
+          {isShopkeeper && (
+            <Badge label="VERIFIED CENTER" variant="primary" style={styles.verifiedCenterPriceBadge} />
+          )}
+
           {offeredPrice !== null ? (
             <>
               <AppText variant="headingSm" color="primary" style={styles.priceAmount}>
                 ₹{offeredPrice}
               </AppText>
               <AppText variant="caption" color="textSecondary" style={styles.priceLabel}>
-                Visit & Inspection
+                Visit & Labor Fee
               </AppText>
             </>
           ) : (
@@ -298,6 +321,38 @@ const makeStyles = (colors: any) =>
       fontWeight: '700',
       color: colors.status.warning,
     },
+    serviceHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.primary.light,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radius.xs,
+      marginBottom: spacing.xs + 2,
+    },
+    serviceHeaderText: {
+      fontSize: 11,
+      color: colors.primary.main,
+    },
+    serviceNameBold: {
+      fontWeight: '700',
+      color: colors.primary.main,
+    },
+    workPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: colors.status.successBg,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.xs,
+    },
+    workText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.status.success,
+    },
     metaPill: {
       backgroundColor: colors.neutral[100],
       paddingHorizontal: 6,
@@ -364,18 +419,30 @@ const makeStyles = (colors: any) =>
       marginTop: 2,
     },
     viewProfileBtn: {
-      marginTop: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 8,
+      paddingHorizontal: spacing.sm + 4,
+      paddingVertical: 6,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary.main,
       alignSelf: 'flex-start',
     },
     viewProfileText: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '700',
-      color: colors.primary.main,
+      color: '#FFFFFF',
     },
     pricingCol: {
       alignItems: 'flex-end',
       justifyContent: 'center',
       minWidth: 80,
+    },
+    verifiedCenterPriceBadge: {
+      marginBottom: 6,
+      paddingVertical: 2,
+      paddingHorizontal: 6,
     },
     priceAmount: {
       fontWeight: '700',

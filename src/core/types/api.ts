@@ -322,6 +322,7 @@ export interface DirectFreelancerBookingRequest {
   saleItemId?: string;
   categoryId?: string;
   preferredTimeSlot?: string;
+  serviceAddress?: string;
   attachmentUrls?: string[];
   priority?: string;
 }

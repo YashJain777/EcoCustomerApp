@@ -45,11 +45,16 @@ interface TimeSlot {
 }
 
 const BASE_TIME_SLOTS: TimeSlot[] = [
-  { label: '09:00 AM - 11:00 AM', hours: 9, minutes: 0 },
-  { label: '11:00 AM - 01:00 PM', hours: 11, minutes: 0 },
-  { label: '01:00 PM - 03:00 PM', hours: 13, minutes: 0 },
-  { label: '03:00 PM - 05:00 PM', hours: 15, minutes: 0 },
-  { label: '05:00 PM - 07:00 PM', hours: 17, minutes: 0 },
+  { label: '09:00 AM - 10:00 AM', hours: 9, minutes: 0 },
+  { label: '10:00 AM - 11:00 AM', hours: 10, minutes: 0 },
+  { label: '11:00 AM - 12:00 PM', hours: 11, minutes: 0 },
+  { label: '12:00 PM - 01:00 PM', hours: 12, minutes: 0 },
+  { label: '01:00 PM - 02:00 PM', hours: 13, minutes: 0 },
+  { label: '02:00 PM - 03:00 PM', hours: 14, minutes: 0 },
+  { label: '03:00 PM - 04:00 PM', hours: 15, minutes: 0 },
+  { label: '04:00 PM - 05:00 PM', hours: 16, minutes: 0 },
+  { label: '05:00 PM - 06:00 PM', hours: 17, minutes: 0 },
+  { label: '06:00 PM - 07:00 PM', hours: 18, minutes: 0 },
 ];
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -175,7 +180,9 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
         // Shops
         if (shopRes.status === 'fulfilled' && shopRes.value?.success && Array.isArray(shopRes.value.data) && shopRes.value.data.length > 0) {
           setShops(shopRes.value.data);
-          setSelectedShopId(shopRes.value.data[0].id);
+          if (route?.params?.shopId) {
+            setSelectedShopId(route.params.shopId);
+          }
         }
 
         // Complaint Types
@@ -188,14 +195,9 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
         if (servRes.status === 'fulfilled' && servRes.value?.success && Array.isArray(servRes.value.data)) {
           loadedServiceTypes = servRes.value.data;
           setServiceTypes(loadedServiceTypes);
-          if (!initialServiceTypeId) {
-            const matchingSt = initialCategoryId
-              ? loadedServiceTypes.find((st) => st.categoryId === initialCategoryId)
-              : loadedServiceTypes[0];
-            if (matchingSt) {
-              setSelectedServiceTypeId(matchingSt.id);
-              initialServiceTypeId = matchingSt.id;
-            }
+          if (route?.params?.serviceTypeId) {
+            setSelectedServiceTypeId(route.params.serviceTypeId);
+            initialServiceTypeId = route.params.serviceTypeId;
           }
         }
 
@@ -209,7 +211,9 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
           });
           if (isMounted && freeRes?.success && Array.isArray(freeRes.data) && freeRes.data.length > 0) {
             setFreelancers(freeRes.data);
-            setSelectedFreelancerId(freeRes.data[0].id);
+            if (route?.params?.freelancerId) {
+              setSelectedFreelancerId(route.params.freelancerId);
+            }
           }
         }
       } catch (err) {

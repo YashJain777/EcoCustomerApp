@@ -81,6 +81,7 @@ const makeStyles = (colors: any) =>
     },
     titleWrapper: {
       flex: 1,
+      justifyContent: 'center',
     },
     title: {
       letterSpacing: -0.2,
