@@ -457,12 +457,34 @@ export const ExternalProductBookingScreen = ({ navigation, route }: any) => {
 
       if (res?.success || res?.data) {
         Alert.alert(
-          'Service Scheduled! 🛠️',
-          `Your appointment for ${selectedCategory.name} (${selectedServiceType.name}) is booked for ${selectedDate.toDateString()} at ${chosenSlot.label}.`,
+          'Booking Request Created',
+          `Your booking request for ${selectedCategory.name} (${selectedServiceType.name}) has been created successfully.`,
           [
             {
-              text: 'View My Bookings',
-              onPress: () => navigation.navigate('MainTab', { screen: 'BookingsScreenTab' }),
+              text: 'OK',
+              onPress: () => {
+                Alert.alert(
+                  'Service Scheduled! 🛠️',
+                  `Your appointment for ${selectedCategory.name} (${selectedServiceType.name}) is booked for ${selectedDate.toDateString()} at ${chosenSlot.label}.`,
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        navigation.reset({
+                          index: 0,
+                          routes: [{ name: 'MainTab', params: { screen: 'HomeScreenTab' } }],
+                        });
+                      },
+                    },
+                    {
+                      text: 'View My Bookings',
+                      onPress: () => {
+                        navigation.navigate('MyComplaintsScreen');
+                      },
+                    },
+                  ]
+                );
+              },
             },
           ]
         );

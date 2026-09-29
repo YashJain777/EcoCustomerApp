@@ -22,7 +22,8 @@ const OPEN_STATUSES = [
   'SCHEDULED',
 ];
 
-const CLOSED_STATUSES = ['RESOLVED', 'COMPLETED', 'CLOSED', 'CANCELLED'];
+const COMPLETED_STATUSES = ['RESOLVED', 'COMPLETED', 'CLOSED'];
+const CANCELLED_STATUSES = ['CANCELLED', 'REJECTED'];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -288,12 +289,14 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
   };
 
   const openCount = items.filter((i) => OPEN_STATUSES.includes(i.status)).length;
-  const closedCount = items.filter((i) => CLOSED_STATUSES.includes(i.status)).length;
+  const completedCount = items.filter((i) => COMPLETED_STATUSES.includes(i.status)).length;
+  const cancelledCount = items.filter((i) => CANCELLED_STATUSES.includes(i.status)).length;
   const installationCount = items.filter((i) => i.type === 'INSTALLATION').length;
 
   const filtered = items.filter((c) => {
     if (activeTab === 'open') return OPEN_STATUSES.includes(c.status);
-    if (activeTab === 'closed') return CLOSED_STATUSES.includes(c.status);
+    if (activeTab === 'closed') return COMPLETED_STATUSES.includes(c.status);
+    if (activeTab === 'cancelled') return CANCELLED_STATUSES.includes(c.status);
     if (activeTab === 'installations') return c.type === 'INSTALLATION';
     return true;
   });
@@ -311,7 +314,8 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
           tabs={[
             { id: 'all', label: 'All', count: items.length },
             { id: 'open', label: 'Active', count: openCount },
-            { id: 'closed', label: 'Completed', count: closedCount },
+            { id: 'closed', label: 'Completed', count: completedCount },
+            { id: 'cancelled', label: 'Cancelled', count: cancelledCount },
             ...(installationCount > 0
               ? [{ id: 'installations', label: 'Installations', count: installationCount }]
               : []),

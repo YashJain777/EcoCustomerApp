@@ -467,34 +467,49 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     return 'warning';
   }, [status, isResolved, isCancelled]);
 
-  const steps = [
-    {
-      title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
-      time: createdAtFormatted,
-      isCompleted: true,
-    },
-    {
-      title: mechanicName
-        ? `Technician Assigned (${mechanicName})`
-        : shopkeeper?.shopName
-        ? `Service Partner: ${shopkeeper.shopName}`
-        : 'Service Engineer Assignment',
-      time: mechanicName ? (mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned' : 'Confirmed') : isClosed ? 'Completed' : 'Pending',
-      isCompleted: Boolean(mechanicName) || isClosed,
-      isActive: isPending && !mechanicName,
-    },
-    {
-      title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Service',
-      time: visitsList.length > 0 ? formatStandardDate((visitsList[0] as any).createdAt || (visitsList[0] as any).visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isClosed ? 'Completed' : '-'),
-      isCompleted: visitsList.length > 0 || isClosed,
-      isActive: status === 'IN_PROGRESS',
-    },
-    {
-      title: type === 'INSTALLATION' ? 'Installation Completed & Verified' : 'Service Completed & Resolved',
-      time: isClosed && !isCancelled ? (ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Completed') : '-',
-      isCompleted: isResolved,
-    },
-  ];
+  const steps = isCancelled
+    ? [
+        {
+          title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
+          time: createdAtFormatted,
+          isCompleted: true,
+        },
+        {
+          title: 'Service Request Cancelled',
+          time: ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Cancelled',
+          isCompleted: false,
+          isActive: false,
+          isCancelled: true,
+        },
+      ]
+    : [
+        {
+          title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
+          time: createdAtFormatted,
+          isCompleted: true,
+        },
+        {
+          title: mechanicName
+            ? `Technician Assigned (${mechanicName})`
+            : shopkeeper?.shopName
+            ? `Service Partner: ${shopkeeper.shopName}`
+            : 'Service Engineer Assignment',
+          time: mechanicName ? (mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned' : 'Confirmed') : isResolved ? 'Completed' : 'Pending',
+          isCompleted: Boolean(mechanicName) || isResolved,
+          isActive: isPending && !mechanicName,
+        },
+        {
+          title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Service',
+          time: visitsList.length > 0 ? formatStandardDate((visitsList[0] as any).createdAt || (visitsList[0] as any).visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isResolved ? 'Completed' : '-'),
+          isCompleted: visitsList.length > 0 || isResolved,
+          isActive: status === 'IN_PROGRESS',
+        },
+        {
+          title: type === 'INSTALLATION' ? 'Installation Completed & Verified' : 'Service Completed & Resolved',
+          time: isResolved ? (ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Completed') : '-',
+          isCompleted: isResolved,
+        },
+      ];
 
   return (
     <ScreenWrapper style={styles.container}>
@@ -1385,7 +1400,7 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
               </View>
             )}
 
-            {isCancelled && (
+            {(isResolved || status === 'CLOSED') && (
               <Button
                 title={reopening ? 'Reopening...' : 'Reopen Ticket'}
                 variant="outline"

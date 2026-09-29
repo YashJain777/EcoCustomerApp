@@ -91,6 +91,17 @@ export const useNotificationSetup = () => {
           const type = remoteMessage.data?.type || remoteMessage.data?.notificationType || 'GENERAL';
 
           if (title || body) {
+            // Ignore instant creation push alerts in foreground to prevent overlapping with booking screen's local confirmation popup
+            const isBookingCreatedPush =
+              title.includes('Booking Request Created') ||
+              body.includes('has been created successfully') ||
+              type === 'BOOKING_CREATED';
+
+            if (isBookingCreatedPush) {
+              console.log('[FCM] Suppressed duplicate foreground creation push popup');
+              return;
+            }
+
             // Handle Notification Enum Types dynamically while user has the app open
             switch (type) {
               case 'SERVICE_COMPLETED':
@@ -102,7 +113,6 @@ export const useNotificationSetup = () => {
                     {
                       text: 'Rate Service ⭐',
                       onPress: () => {
-                        // Triggers rating flow for completed job
                         console.log('[FCM] Customer clicked Rate Service for job:', remoteMessage.data?.jobId);
                       },
                     },
@@ -117,6 +127,21 @@ export const useNotificationSetup = () => {
                     { text: 'Dismiss', style: 'cancel' },
                     { text: 'Write Review', onPress: () => {} },
                   ]
+                );
+                break;
+              case 'COMPLAINT_CLOSED':
+              case 'SERVICE_CLOSED':
+                Alert.alert(
+                  title || 'Service Ticket Closed ✅',
+                  body || 'Your service complaint has been closed.',
+                  [{ text: 'OK', style: 'cancel' }]
+                );
+                break;
+              case 'SERVICE_CANCELLED':
+                Alert.alert(
+                  title || 'Service Cancelled ❌',
+                  body || 'Your service booking has been cancelled.',
+                  [{ text: 'OK', style: 'cancel' }]
                 );
                 break;
               case 'MECHANIC_ASSIGNED':
