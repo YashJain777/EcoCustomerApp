@@ -271,7 +271,13 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
         setItems([]);
       }
     } catch (err: any) {
-      setErrorMsg(err?.error?.message || 'Could not load services & complaints');
+      console.warn('[MyComplaintsScreen] fetchBookings failed:', err);
+      const msg =
+        err?.error?.message ||
+        err?.message ||
+        (typeof err?.error === 'string' ? err.error : null) ||
+        'Could not load services & complaints';
+      setErrorMsg(msg);
       setItems([]);
     } finally {
       setLoading(false);

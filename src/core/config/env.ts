@@ -12,7 +12,9 @@ const getBaseUrl = () => {
 
   // Local Backend URL:
   // For physical Android devices via USB (with 'adb reverse tcp:4000 tcp:4000') and iOS/Web
-  return 'http://localhost:4000/api';
+  // return 'http://localhost:4000/api';
+  // Using 127.0.0.1 avoids IPv6 localhost resolution issues on Android
+  return 'http://127.0.0.1:4000/api';
 };
 
 export const ENV = {

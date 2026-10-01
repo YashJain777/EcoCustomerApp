@@ -164,7 +164,13 @@ export const MyProductsScreen = ({ navigation }: any) => {
         setProducts([]);
       }
     } catch (err: any) {
-      setErrorMsg(err?.error?.message || 'Could not load registered appliances');
+      console.warn('[MyProductsScreen] fetchProducts failed:', err);
+      const msg =
+        err?.error?.message ||
+        err?.message ||
+        (typeof err?.error === 'string' ? err.error : null) ||
+        'Could not load registered appliances';
+      setErrorMsg(msg);
       setProducts([]);
     } finally {
       setLoading(false);
