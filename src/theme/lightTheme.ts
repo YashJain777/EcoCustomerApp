@@ -18,9 +18,9 @@ export const lightTheme: AppTheme = {
       gradient: ['#3B82F6', '#2563EB'],
     },
     cta: {
-      main: '#14B8A6',
-      hover: '#0F766E',
-      light: '#CCFBF1',
+      main: '#2563EB',
+      hover: '#1D4ED8',
+      light: '#EFF6FF',
     },
     secondary: {
       main: '#6366F1',

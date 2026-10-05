@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import dayjs from 'dayjs';
 import { ScreenWrapper } from '@shared/components/organisms/ScreenWrapper';
 import { SegmentedTabs } from '@shared/components/molecules/SegmentedTabs';
 import { Header } from '@shared/components/molecules/Header';
@@ -8,6 +9,7 @@ import { ListItemCard } from '@shared/components/molecules/ListItemCard';
 import { AppIcon } from '@shared/components/atoms/Icon';
 import { AppText } from '@shared/components/atoms/AppText';
 import { EmptyState } from '@shared/components/molecules/EmptyState';
+import { AppCalendarView } from '@shared/components/molecules/AppCalendarView';
 import { spacing, radius, useTheme } from '@theme/index';
 import { complaintApi } from '@infrastructure/api/complaintApi';
 
@@ -24,6 +26,14 @@ const OPEN_STATUSES = [
 
 const COMPLETED_STATUSES = ['RESOLVED', 'COMPLETED', 'CLOSED'];
 const CANCELLED_STATUSES = ['CANCELLED', 'REJECTED'];
+
+const DATE_FILTER_TABS = [
+  { key: 'ALL', label: 'All Dates' },
+  { key: 'TODAY', label: 'Today' },
+  { key: 'TOMORROW', label: 'Tomorrow' },
+  { key: 'THIS_WEEK', label: 'This Week' },
+  { key: 'THIS_MONTH', label: 'This Month' },
+];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -42,18 +52,17 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
     const year = slashMatch[3];
     const rawTime = slashMatch[4]?.trim();
 
-    // Standard MM/DD/YYYY with fallback if day is first
-    let day = p2;
-    let monthIndex = p1 - 1;
-    if (p1 > 12 && p2 <= 12) {
-      day = p1;
-      monthIndex = p2 - 1;
+    let day = p1;
+    let monthIndex = p2 - 1;
+    if (p2 > 12 && p1 <= 12) {
+      day = p2;
+      monthIndex = p1 - 1;
     }
 
     if (monthIndex >= 0 && monthIndex < 12) {
       let formatted = `${day} ${MONTHS[monthIndex]} ${year}`;
       if (includeTime && rawTime) {
-        const cleanTime = rawTime.replace(/:00(\s*)/i, '$1').toUpperCase().trim();
+        const cleanTime = rawTime.replace(/:\d{2}:00/g, (m) => m.slice(0, 3)).toUpperCase().trim();
         formatted += ` • ${cleanTime}`;
       }
       return formatted;
@@ -97,6 +106,69 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
   }
 
   return str;
+};
+
+/**
+ * Formats a single time string (e.g. "6:00 PM", "1:00 PM", "18:00") into a standard 1-hour time range (e.g. "06:00 PM - 07:00 PM").
+ */
+export const formatSlotTimeString = (rawTime?: string | null): string => {
+  if (!rawTime) return '';
+  const str = String(rawTime).trim();
+
+  // If already a range (contains '-' or '–'), return formatted range
+  if (str.includes('-') || str.includes('–')) {
+    return str;
+  }
+
+  // Handle single time formats like "6:00 PM", "06:00 PM", "6 PM", "18:00"
+  const match = str.match(/^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?$/i);
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const min = parseInt(match[2] || '0', 10);
+    const ampm = match[3]?.toUpperCase();
+
+    if (ampm === 'PM' && hour < 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+
+    const startH12 = hour % 12 || 12;
+    const startAmPm = hour >= 12 ? 'PM' : 'AM';
+    const startFormatted = `${startH12 < 10 ? '0' : ''}${startH12}:${min < 10 ? '0' : ''}${min} ${startAmPm}`;
+
+    const endHour = (hour + 1) % 24;
+    const endH12 = endHour % 12 || 12;
+    const endAmPm = endHour >= 12 ? 'PM' : 'AM';
+    const endFormatted = `${endH12 < 10 ? '0' : ''}${endH12}:${min < 10 ? '0' : ''}${min} ${endAmPm}`;
+
+    return `${startFormatted} - ${endFormatted}`;
+  }
+
+  return str;
+};
+
+/**
+ * Extracts a 1-hour time range from an ISO date string or Date object
+ */
+export const extractSlotTimeRangeFromDate = (dateStr?: string | null): string => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h12 = hours % 12 || 12;
+      const minStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+      const startStr = `${h12 < 10 ? '0' : ''}${h12}:${minStr} ${ampm}`;
+
+      const endHours = (hours + 1) % 24;
+      const endH12 = endHours % 12 || 12;
+      const endAmPm = endHours >= 12 ? 'PM' : 'AM';
+      const endStr = `${endH12 < 10 ? '0' : ''}${endH12}:${minStr} ${endAmPm}`;
+
+      return `${startStr} - ${endStr}`;
+    }
+  } catch (_) {}
+  return '';
 };
 
 /**
@@ -153,6 +225,10 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
 
+  const [selectedDateFilter, setSelectedDateFilter] = useState('ALL');
+  const [customDate, setCustomDate] = useState('');
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+
   const { theme } = useTheme();
   const colors = theme.colors;
   const insets = useSafeAreaInsets();
@@ -180,35 +256,44 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
           if (c.scheduledAt) {
             isScheduled = true;
             const formattedDateOnly = formatStandardDate(c.scheduledAt, false);
-            if (c.preferredTimeSlot) {
-              appointmentSlot = `${formattedDateOnly} • ${c.preferredTimeSlot}`;
-            } else {
-              appointmentSlot = formatStandardDate(c.scheduledAt, true);
-            }
+            const timePart = c.preferredTimeSlot
+              ? formatSlotTimeString(c.preferredTimeSlot)
+              : extractSlotTimeRangeFromDate(c.scheduledAt);
+            appointmentSlot = timePart ? `${formattedDateOnly} • ${timePart}` : formatStandardDate(c.scheduledAt, true);
           } else if (c.preferredSlot && typeof c.preferredSlot === 'string') {
             isScheduled = true;
             if (c.preferredSlot.includes('•')) {
               const parts = c.preferredSlot.split('•').map((p: string) => p.trim());
               const datePart = formatStandardDate(parts[0], false);
-              appointmentSlot = `${datePart} • ${parts[1]}`;
+              const timePart = formatSlotTimeString(parts[1]);
+              appointmentSlot = `${datePart} • ${timePart}`;
             } else {
               appointmentSlot = formatStandardDate(c.preferredSlot, true);
+              if (appointmentSlot.includes('•')) {
+                const parts = appointmentSlot.split('•').map((p: string) => p.trim());
+                appointmentSlot = `${parts[0]} • ${formatSlotTimeString(parts[1])}`;
+              }
             }
           } else if (c.preferredVisitDate) {
             isScheduled = true;
             const datePart = formatStandardDate(c.preferredVisitDate, false);
-            if (c.preferredTimeSlot) {
-              appointmentSlot = `${datePart} • ${c.preferredTimeSlot}`;
-            } else {
-              appointmentSlot = formatStandardDate(c.preferredVisitDate, true);
-            }
+            const timePart = c.preferredTimeSlot
+              ? formatSlotTimeString(c.preferredTimeSlot)
+              : extractSlotTimeRangeFromDate(c.preferredVisitDate);
+            appointmentSlot = timePart ? `${datePart} • ${timePart}` : formatStandardDate(c.preferredVisitDate, true);
           } else if (c.preferredTimeSlot) {
             isScheduled = true;
-            appointmentSlot = `Scheduled • ${c.preferredTimeSlot}`;
+            appointmentSlot = `Scheduled • ${formatSlotTimeString(c.preferredTimeSlot)}`;
           } else if (c.description && /\[Preferred:\s*([^\]]+)\]/i.test(c.description)) {
             const match = c.description.match(/\[Preferred:\s*([^\]]+)\]/i);
             isScheduled = true;
-            appointmentSlot = match ? match[1] : 'Scheduled Visit';
+            const rawMatch = match ? match[1] : 'Scheduled Visit';
+            if (rawMatch.includes('•')) {
+              const parts = rawMatch.split('•').map((p: string) => p.trim());
+              appointmentSlot = `${parts[0]} • ${formatSlotTimeString(parts[1])}`;
+            } else {
+              appointmentSlot = rawMatch;
+            }
           } else {
             isScheduled = false;
             appointmentSlot = 'As per technician availability';
@@ -294,17 +379,53 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
     fetchBookings();
   };
 
+  const isMatchDate = useCallback(
+    (item: any) => {
+      if (selectedDateFilter === 'ALL' && !customDate) return true;
+
+      // Filter specifically based on "Request Placed On" date (createdAt)
+      const rawDate = item.raw?.createdAt || item.raw?.scheduledAt || item.raw?.preferredVisitDate;
+      if (!rawDate) return true;
+
+      const d = dayjs(rawDate);
+      if (!d.isValid()) return true;
+
+      const dStr = d.format('YYYY-MM-DD');
+      const dMonth = d.format('YYYY-MM');
+
+      const now = dayjs();
+      const today = now.format('YYYY-MM-DD');
+      const tomorrow = now.add(1, 'day').format('YYYY-MM-DD');
+      const startOfWeek = now.startOf('week').format('YYYY-MM-DD');
+      const endOfWeek = now.endOf('week').format('YYYY-MM-DD');
+      const thisMonth = now.format('YYYY-MM');
+
+      if (customDate) return dStr === customDate;
+      if (selectedDateFilter === 'TODAY') return dStr === today;
+      if (selectedDateFilter === 'TOMORROW') return dStr === tomorrow;
+      if (selectedDateFilter === 'THIS_WEEK') return dStr >= startOfWeek && dStr <= endOfWeek;
+      if (selectedDateFilter === 'THIS_MONTH') return dMonth === thisMonth;
+
+      return true;
+    },
+    [selectedDateFilter, customDate]
+  );
+
   const openCount = items.filter((i) => OPEN_STATUSES.includes(i.status)).length;
   const completedCount = items.filter((i) => COMPLETED_STATUSES.includes(i.status)).length;
   const cancelledCount = items.filter((i) => CANCELLED_STATUSES.includes(i.status)).length;
   const installationCount = items.filter((i) => i.type === 'INSTALLATION').length;
 
   const filtered = items.filter((c) => {
-    if (activeTab === 'open') return OPEN_STATUSES.includes(c.status);
-    if (activeTab === 'closed') return COMPLETED_STATUSES.includes(c.status);
-    if (activeTab === 'cancelled') return CANCELLED_STATUSES.includes(c.status);
-    if (activeTab === 'installations') return c.type === 'INSTALLATION';
-    return true;
+    let statusMatch = true;
+    if (activeTab === 'open') statusMatch = OPEN_STATUSES.includes(c.status);
+    else if (activeTab === 'closed') statusMatch = COMPLETED_STATUSES.includes(c.status);
+    else if (activeTab === 'cancelled') statusMatch = CANCELLED_STATUSES.includes(c.status);
+    else if (activeTab === 'installations') statusMatch = c.type === 'INSTALLATION';
+
+    if (!statusMatch) return false;
+
+    return isMatchDate(c);
   });
 
   return (
@@ -329,6 +450,87 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
           activeTab={activeTab}
           onSelectTab={setActiveTab}
         />
+      </View>
+
+      {/* ── Single-Line Horizontal Date Filter Chips ───────────────────────────── */}
+      <View style={styles.dateFilterWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dateFilterScrollContent}
+        >
+          {DATE_FILTER_TABS.map((tab) => {
+            const isSelected = selectedDateFilter === tab.key && !customDate;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                onPress={() => {
+                  setSelectedDateFilter(tab.key);
+                  setCustomDate('');
+                }}
+                activeOpacity={0.75}
+              >
+                {tab.key === 'ALL' && (
+                  <AppIcon
+                    name="calendar-outline"
+                    size="xs"
+                    color={isSelected ? colors.text.inverse : colors.text.secondary}
+                  />
+                )}
+                <AppText
+                  variant="caption"
+                  style={[styles.dateChipText, isSelected && styles.dateChipTextSelected]}
+                  numberOfLines={1}
+                >
+                  {tab.label}
+                </AppText>
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Custom Calendar Date Picker Trigger */}
+          <TouchableOpacity
+            style={[
+              styles.dateChip,
+              (customDate || selectedDateFilter === 'CUSTOM') && styles.dateChipSelected,
+            ]}
+            onPress={() => setShowDatePickerModal(true)}
+            activeOpacity={0.75}
+          >
+            <AppIcon
+              name="funnel-outline"
+              size="xs"
+              color={
+                customDate || selectedDateFilter === 'CUSTOM'
+                  ? colors.text.inverse
+                  : colors.text.secondary
+              }
+            />
+            <AppText
+              variant="caption"
+              style={[
+                styles.dateChipText,
+                (customDate || selectedDateFilter === 'CUSTOM') && styles.dateChipTextSelected,
+              ]}
+              numberOfLines={1}
+            >
+              {customDate ? dayjs(customDate).format('DD MMM YYYY') : 'Pick Date 📅'}
+            </AppText>
+            {customDate ? (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setCustomDate('');
+                  setSelectedDateFilter('ALL');
+                }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <AppIcon name="close-circle" size="xs" color={colors.text.inverse} />
+              </TouchableOpacity>
+            ) : null}
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {errorMsg && (
@@ -434,6 +636,19 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
                 onPress={() => navigation.navigate('ComplaintDetailScreen', { ticket: item, id: item.id })}
                 footerContent={
                   <View style={styles.footerContainer}>
+                    {/* Request Placed On Row */}
+                    {item.createdAt ? (
+                      <View style={styles.requestPlacedRow}>
+                        <AppIcon name="time-outline" size="xs" color={colors.text.secondary} />
+                        <AppText variant="caption" color="textMuted">
+                          Request Placed On:{' '}
+                          <AppText variant="caption" color="textPrimary" style={styles.boldText}>
+                            {item.createdAt}
+                          </AppText>
+                        </AppText>
+                      </View>
+                    ) : null}
+
                     <View style={styles.footerRowInner}>
                       <View style={styles.footerItem}>
                         <AppText variant="caption" color="textMuted">
@@ -543,6 +758,61 @@ export const MyComplaintsScreen = ({ navigation }: any) => {
       >
         <AppIcon name="add" size="lg" color={colors.text.inverse} />
       </TouchableOpacity>
+
+      {/* Interactive Calendar Date Picker Modal */}
+      <Modal
+        visible={showDatePickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDatePickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowDatePickerModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderTitleGroup}>
+                <AppIcon name="calendar" size="sm" color={colors.primary.main} />
+                <AppText variant="headingSm" color="textPrimary" style={styles.boldText}>
+                  Filter Services by Date
+                </AppText>
+              </View>
+              <TouchableOpacity onPress={() => setShowDatePickerModal(false)}>
+                <AppIcon name="close" size="sm" color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.calendarWrap}>
+              <AppCalendarView
+                selectedDate={customDate || dayjs().format('YYYY-MM-DD')}
+                onSelectDate={(dStr) => {
+                  setCustomDate(dStr);
+                  setSelectedDateFilter('CUSTOM');
+                  setShowDatePickerModal(false);
+                }}
+                minDate="2024-01-01"
+              />
+            </View>
+
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                style={styles.clearDateFilterBtn}
+                onPress={() => {
+                  setCustomDate('');
+                  setSelectedDateFilter('ALL');
+                  setShowDatePickerModal(false);
+                }}
+              >
+                <AppText variant="labelSm" color="primary" style={styles.boldText}>
+                  Clear Date Filter
+                </AppText>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </ScreenWrapper>
   );
 };
@@ -556,6 +826,76 @@ const makeStyles = (colors: any, bottomInset: number) => {
     },
     tabWrapper: {
       marginVertical: spacing.xs,
+    },
+    dateFilterWrap: {
+      marginBottom: spacing.sm,
+    },
+    dateFilterScrollContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs + 2,
+    },
+    dateChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs + 2,
+      borderRadius: radius.pill,
+      backgroundColor: colors.background.paper,
+      borderWidth: 1,
+      borderColor: colors.border.light,
+    },
+    dateChipSelected: {
+      backgroundColor: colors.primary.main,
+      borderColor: colors.primary.main,
+    },
+    dateChipText: {
+      color: colors.text.secondary,
+      fontWeight: '600',
+    },
+    dateChipTextSelected: {
+      color: colors.text.inverse,
+      fontWeight: '800',
+    },
+    boldText: {
+      fontWeight: '700',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: colors.background.paper,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      padding: spacing.lg,
+    },
+    modalHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
+    modalHeaderTitleGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs + 2,
+    },
+    calendarWrap: {
+      marginBottom: spacing.md,
+    },
+    modalFooterRow: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    clearDateFilterBtn: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border.light,
     },
     errorBanner: {
       flexDirection: 'row',
@@ -588,6 +928,15 @@ const makeStyles = (colors: any, bottomInset: number) => {
     footerContainer: {
       width: '100%',
       gap: spacing.xs + 2,
+    },
+    requestPlacedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingBottom: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.light,
+      marginBottom: 2,
     },
     footerRowInner: {
       flexDirection: 'row',

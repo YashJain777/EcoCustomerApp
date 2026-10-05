@@ -55,12 +55,18 @@ const formatStandardDate = (dateStr?: string | null): string => {
   if (!dateStr) return 'N/A';
   const str = String(dateStr).trim();
 
-  // Pattern 1: Slash format (M/D/YYYY)
+  // Pattern 1: Slash format (D/M/YYYY or M/D/YYYY)
   const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (slashMatch) {
-    const monthIndex = parseInt(slashMatch[1], 10) - 1;
-    const day = parseInt(slashMatch[2], 10);
+    const p1 = parseInt(slashMatch[1], 10);
+    const p2 = parseInt(slashMatch[2], 10);
     const year = slashMatch[3];
+    let day = p1;
+    let monthIndex = p2 - 1;
+    if (p2 > 12 && p1 <= 12) {
+      day = p2;
+      monthIndex = p1 - 1;
+    }
     if (monthIndex >= 0 && monthIndex < 12) {
       return `${day} ${MONTHS[monthIndex]} ${year}`;
     }
@@ -677,7 +683,7 @@ export const ProductDetailScreen = ({ route, navigation }: any) => {
           </View>
         ) : (
           <View style={styles.outOfWarrantyHintBar}>
-            <AppIcon name="shield-outline" size="xs" color={colors.status.warning} />
+            <AppIcon name="shield-outline" size="xs" color={colors.primary.main} />
             <AppText variant="caption" style={styles.outOfWarrantyHintText}>
               Standard Diagnostics & Repair • Certified Specialists
             </AppText>
@@ -1588,7 +1594,9 @@ const makeStyles = (colors: any, bottomInset: number) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: colors.status.warningBg,
+      backgroundColor: colors.primary.light,
+      borderWidth: 1,
+      borderColor: colors.primary.main,
       paddingHorizontal: spacing.sm,
       paddingVertical: 4,
       borderRadius: radius.pill,
@@ -1596,7 +1604,7 @@ const makeStyles = (colors: any, bottomInset: number) => {
       alignSelf: 'center',
     },
     outOfWarrantyHintText: {
-      color: colors.status.warning,
+      color: colors.primary.main,
       fontWeight: '600',
       fontSize: 11,
     },

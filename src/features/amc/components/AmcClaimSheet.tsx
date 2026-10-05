@@ -80,7 +80,7 @@ export const AmcClaimSheet: React.FC<AmcClaimSheetProps> = ({
             }
           }
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoadingAddresses(false));
     }
   }, [visible]);
@@ -165,12 +165,12 @@ export const AmcClaimSheet: React.FC<AmcClaimSheetProps> = ({
 
     const fullServiceAddress = selectedAddress
       ? [
-          selectedAddress.houseNo,
-          selectedAddress.street,
-          selectedAddress.landmark ? `Near ${selectedAddress.landmark}` : null,
-          selectedAddress.cityName,
-          selectedAddress.pinCode ? `PIN: ${selectedAddress.pinCode}` : null,
-        ].filter(Boolean).join(', ') || selectedAddress.address
+        selectedAddress.houseNo,
+        selectedAddress.street,
+        selectedAddress.landmark ? `Near ${selectedAddress.landmark}` : null,
+        selectedAddress.cityName,
+        selectedAddress.pinCode ? `PIN: ${selectedAddress.pinCode}` : null,
+      ].filter(Boolean).join(', ') || selectedAddress.address
       : undefined;
 
     setSubmitting(true);

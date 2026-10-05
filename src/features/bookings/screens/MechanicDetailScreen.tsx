@@ -348,7 +348,7 @@ export const MechanicDetailScreen = ({ navigation, route }: any) => {
             )}
           </Card>
 
-          {/* Working Hours & 2-Hour Dynamic Slots Info */}
+          {/* Working Hours & Dynamic Slots Info */}
           <Card style={styles.sectionCard} padding="md">
             <View style={styles.sectionTitleRow}>
               <AppIcon name="time-outline" size="sm" color={colors.primary.main} />
@@ -357,10 +357,21 @@ export const MechanicDetailScreen = ({ navigation, route }: any) => {
               </AppText>
             </View>
             <AppText variant="bodySm" color="textSecondary" style={styles.slotIntroText}>
-              Technician operates on standard 2-hour appointment slots between 09:00 AM and 07:00 PM:
+              Technician operates on standard 1-hour appointment slots between 09:00 AM and 07:00 PM:
             </AppText>
             <View style={styles.slotsPreviewWrap}>
-              {['09:00 AM - 11:00 AM', '11:00 AM - 01:00 PM', '01:00 PM - 03:00 PM', '03:00 PM - 05:00 PM', '05:00 PM - 07:00 PM'].map((slot, sIdx) => (
+              {[
+                '09:00 AM - 10:00 AM',
+                '10:00 AM - 11:00 AM',
+                '11:00 AM - 12:00 PM',
+                '12:00 PM - 01:00 PM',
+                '01:00 PM - 02:00 PM',
+                '02:00 PM - 03:00 PM',
+                '03:00 PM - 04:00 PM',
+                '04:00 PM - 05:00 PM',
+                '05:00 PM - 06:00 PM',
+                '06:00 PM - 07:00 PM',
+              ].map((slot, sIdx) => (
                 <View key={sIdx} style={styles.slotChipPreview}>
                   <AppIcon name="time-outline" size="xs" color={colors.primary.main} />
                   <AppText variant="caption" color="textPrimary" style={styles.slotChipText}>

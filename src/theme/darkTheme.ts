@@ -14,9 +14,9 @@ export const darkTheme: AppTheme = {
       gradient: ['#60A5FA', '#3B82F6'],
     },
     cta: {
-      main: '#2DD4BF', // Lighter teal
-      hover: '#14B8A6',
-      light: '#134E4A', // Dark teal background
+      main: '#3B82F6',
+      hover: '#2563EB',
+      light: '#1E3A8A',
     },
     secondary: {
       main: '#818CF8', // Lighter indigo

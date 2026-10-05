@@ -167,11 +167,22 @@ export const bookingApi = {
 
   rescheduleBooking: async (
     id: string,
-    scheduledAt: string
+    scheduledAt: string,
+    preferredTimeSlot?: string
   ): Promise<ApiResponse<BookingDetails>> => {
     return await axiosInstance.patch<any, ApiResponse<BookingDetails>>(
       `/v1/customers/bookings/${id}/reschedule`,
-      { scheduledAt }
+      { scheduledAt, preferredTimeSlot }
+    );
+  },
+
+  getMechanicPublicSlots: async (
+    mechanicId: string,
+    date: string
+  ): Promise<ApiResponse<{ date: string; isWorkingDay: boolean; reason?: string; slots: Array<{ id: string; startTime: string; endTime: string; label: string; isActive: boolean }> }>> => {
+    return await axiosInstance.get<any, ApiResponse<any>>(
+      `/v1/mechanics/slots/${mechanicId}/public-slots`,
+      { params: { date } }
     );
   },
 

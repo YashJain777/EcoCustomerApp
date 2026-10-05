@@ -29,28 +29,56 @@ import { spacing, radius, useTheme } from '@theme/index';
 import { complaintApi } from '@infrastructure/api/complaintApi';
 import { bookingApi } from '@infrastructure/api/bookingApi';
 import type { ComplaintTicket, ComplaintServiceJob } from '@core/types/api';
+import { makeStyles } from './ComplaintDetailScreen.styles';
 
 const RESCHEDULE_OPTIONS = [
   {
-    label: 'Tomorrow, 10:00 AM',
+    label: 'Tomorrow, 09:00 AM - 10:00 AM',
     getIso: () => {
       const d = new Date();
       d.setDate(d.getDate() + 1);
-      d.setHours(10, 0, 0, 0);
+      d.setHours(9, 0, 0, 0);
       return d.toISOString();
     },
   },
   {
-    label: 'Tomorrow, 02:30 PM',
+    label: 'Tomorrow, 11:00 AM - 12:00 PM',
     getIso: () => {
       const d = new Date();
       d.setDate(d.getDate() + 1);
-      d.setHours(14, 30, 0, 0);
+      d.setHours(11, 0, 0, 0);
       return d.toISOString();
     },
   },
   {
-    label: 'Day after, 11:00 AM',
+    label: 'Tomorrow, 02:00 PM - 03:00 PM',
+    getIso: () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(14, 0, 0, 0);
+      return d.toISOString();
+    },
+  },
+  {
+    label: 'Tomorrow, 04:00 PM - 05:00 PM',
+    getIso: () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(16, 0, 0, 0);
+      return d.toISOString();
+    },
+  },
+  {
+    label: 'Day after, 09:00 AM - 10:00 AM',
+    getIso: () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 2);
+      d.setHours(9, 0, 0, 0);
+      return d.toISOString();
+    },
+  },
+  {
+    label: 'Day after, 11:00 AM - 12:00 PM',
     getIso: () => {
       const d = new Date();
       d.setDate(d.getDate() + 2);
@@ -59,7 +87,16 @@ const RESCHEDULE_OPTIONS = [
     },
   },
   {
-    label: 'Day after, 04:00 PM',
+    label: 'Day after, 02:00 PM - 03:00 PM',
+    getIso: () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 2);
+      d.setHours(14, 0, 0, 0);
+      return d.toISOString();
+    },
+  },
+  {
+    label: 'Day after, 04:00 PM - 05:00 PM',
     getIso: () => {
       const d = new Date();
       d.setDate(d.getDate() + 2);
@@ -86,17 +123,17 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
     const year = slashMatch[3];
     const rawTime = slashMatch[4]?.trim();
 
-    let day = p2;
-    let monthIndex = p1 - 1;
-    if (p1 > 12 && p2 <= 12) {
-      day = p1;
-      monthIndex = p2 - 1;
+    let day = p1;
+    let monthIndex = p2 - 1;
+    if (p2 > 12 && p1 <= 12) {
+      day = p2;
+      monthIndex = p1 - 1;
     }
 
     if (monthIndex >= 0 && monthIndex < 12) {
       let formatted = `${day} ${MONTHS[monthIndex]} ${year}`;
       if (includeTime && rawTime) {
-        const cleanTime = rawTime.replace(/:00(\s*)/i, '$1').toUpperCase().trim();
+        const cleanTime = rawTime.replace(/:\d{2}:00/g, (m) => m.slice(0, 3)).toUpperCase().trim();
         formatted += ` • ${cleanTime}`;
       }
       return formatted;
@@ -121,7 +158,7 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
           const minStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
           formatted += ` • ${h12}:${minStr} ${ampm}`;
         }
-      } catch (_) {}
+      } catch (_) { }
       return formatted;
     }
   }
@@ -134,12 +171,74 @@ export const formatStandardDate = (dateStr?: string | null, includeTime = true):
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const h12 = hours % 12 || 12;
     const minStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
-    return `${parsed.getDate()} ${MONTHS[parsed.getMonth()]} ${parsed.getFullYear()}${
-      includeTime ? ` • ${h12}:${minStr} ${ampm}` : ''
-    }`;
+    return `${parsed.getDate()} ${MONTHS[parsed.getMonth()]} ${parsed.getFullYear()}${includeTime ? ` • ${h12}:${minStr} ${ampm}` : ''
+      }`;
   }
 
   return str;
+};
+
+/**
+ * Formats a single time string (e.g. "6:00 PM", "1:00 PM", "18:00") into a standard 1-hour time range (e.g. "06:00 PM - 07:00 PM").
+ */
+export const formatSlotTimeString = (rawTime?: string | null): string => {
+  if (!rawTime) return '';
+  const str = String(rawTime).trim();
+
+  // If already a range (contains '-' or '–'), return formatted range
+  if (str.includes('-') || str.includes('–')) {
+    return str;
+  }
+
+  // Handle single time formats like "6:00 PM", "06:00 PM", "6 PM", "18:00"
+  const match = str.match(/^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?$/i);
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const min = parseInt(match[2] || '0', 10);
+    const ampm = match[3]?.toUpperCase();
+
+    if (ampm === 'PM' && hour < 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+
+    const startH12 = hour % 12 || 12;
+    const startAmPm = hour >= 12 ? 'PM' : 'AM';
+    const startFormatted = `${startH12 < 10 ? '0' : ''}${startH12}:${min < 10 ? '0' : ''}${min} ${startAmPm}`;
+
+    const endHour = (hour + 1) % 24;
+    const endH12 = endHour % 12 || 12;
+    const endAmPm = endHour >= 12 ? 'PM' : 'AM';
+    const endFormatted = `${endH12 < 10 ? '0' : ''}${endH12}:${min < 10 ? '0' : ''}${min} ${endAmPm}`;
+
+    return `${startFormatted} - ${endFormatted}`;
+  }
+
+  return str;
+};
+
+/**
+ * Extracts a 1-hour time range from an ISO date string or Date object
+ */
+export const extractSlotTimeRangeFromDate = (dateStr?: string | null): string => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h12 = hours % 12 || 12;
+      const minStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+      const startStr = `${h12 < 10 ? '0' : ''}${h12}:${minStr} ${ampm}`;
+
+      const endHours = (hours + 1) % 24;
+      const endH12 = endHours % 12 || 12;
+      const endAmPm = endHours >= 12 ? 'PM' : 'AM';
+      const endStr = `${endH12 < 10 ? '0' : ''}${endH12}:${minStr} ${endAmPm}`;
+
+      return `${startStr} - ${endStr}`;
+    }
+  } catch (_) {}
+  return '';
 };
 
 /**
@@ -212,6 +311,23 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
   const [reopening, setReopening] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+
+  // Dynamic Reschedule State
+  const [rescheduleDateOffset, setRescheduleDateOffset] = useState<number>(1);
+  const [rescheduleSlot, setRescheduleSlot] = useState<string>('09:00 AM - 10:00 AM');
+  const [fetchingDynamicSlots, setFetchingDynamicSlots] = useState<boolean>(false);
+  const [dynamicSlotsList, setDynamicSlotsList] = useState<Array<{ label: string; isAvailable: boolean; reason?: string }>>([
+    { label: '09:00 AM - 10:00 AM', isAvailable: true },
+    { label: '10:00 AM - 11:00 AM', isAvailable: true },
+    { label: '11:00 AM - 12:00 PM', isAvailable: true },
+    { label: '12:00 PM - 01:00 PM', isAvailable: true },
+    { label: '01:00 PM - 02:00 PM', isAvailable: true },
+    { label: '02:00 PM - 03:00 PM', isAvailable: true },
+    { label: '03:00 PM - 04:00 PM', isAvailable: true },
+    { label: '04:00 PM - 05:00 PM', isAvailable: true },
+    { label: '05:00 PM - 06:00 PM', isAvailable: true },
+    { label: '06:00 PM - 07:00 PM', isAvailable: true },
+  ]);
 
   const fetchTicketDetails = useCallback(async () => {
     if (!ticketId) return;
@@ -297,26 +413,42 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     if (ticketData.preferredSlot.includes('•')) {
       const parts = ticketData.preferredSlot.split('•').map((p) => p.trim());
       const datePart = formatStandardDate(parts[0], false);
-      preferredSlotFormatted = `${datePart} • ${parts[1]}`;
+      const timePart = formatSlotTimeString(parts[1]);
+      preferredSlotFormatted = `${datePart} • ${timePart}`;
     } else {
       preferredSlotFormatted = formatStandardDate(ticketData.preferredSlot, true);
+      if (preferredSlotFormatted.includes('•')) {
+        const parts = preferredSlotFormatted.split('•').map((p) => p.trim());
+        preferredSlotFormatted = `${parts[0]} • ${formatSlotTimeString(parts[1])}`;
+      }
     }
   } else if (ticketData?.preferredVisitDate) {
     const formattedDateOnly = formatStandardDate(ticketData.preferredVisitDate, false);
-    if (ticketData?.preferredTimeSlot) {
-      preferredSlotFormatted = `${formattedDateOnly} • ${ticketData.preferredTimeSlot}`;
-    } else {
-      preferredSlotFormatted = formatStandardDate(ticketData.preferredVisitDate, true);
-    }
-  } else if (ticketData?.preferredTimeSlot) {
-    preferredSlotFormatted = ticketData.preferredTimeSlot;
+    const timePart = ticketData?.preferredTimeSlot
+      ? formatSlotTimeString(ticketData.preferredTimeSlot)
+      : extractSlotTimeRangeFromDate(ticketData.preferredVisitDate);
+    preferredSlotFormatted = timePart ? `${formattedDateOnly} • ${timePart}` : formatStandardDate(ticketData.preferredVisitDate, true);
   } else if (ticketData?.scheduledAt) {
-    preferredSlotFormatted = formatStandardDate(ticketData.scheduledAt, true);
+    const formattedDateOnly = formatStandardDate(ticketData.scheduledAt, false);
+    const timePart = ticketData?.preferredTimeSlot
+      ? formatSlotTimeString(ticketData.preferredTimeSlot)
+      : extractSlotTimeRangeFromDate(ticketData.scheduledAt);
+    preferredSlotFormatted = timePart ? `${formattedDateOnly} • ${timePart}` : formatStandardDate(ticketData.scheduledAt, true);
+  } else if (ticketData?.preferredTimeSlot) {
+    preferredSlotFormatted = formatSlotTimeString(ticketData.preferredTimeSlot);
   } else if (primaryVisit?.visitDate) {
-    preferredSlotFormatted = formatStandardDate(primaryVisit.visitDate, true);
+    const formattedDateOnly = formatStandardDate(primaryVisit.visitDate, false);
+    const timePart = extractSlotTimeRangeFromDate(primaryVisit.visitDate);
+    preferredSlotFormatted = timePart ? `${formattedDateOnly} • ${timePart}` : formatStandardDate(primaryVisit.visitDate, true);
   } else if (ticketData?.description && /\[Preferred:\s*([^\]]+)\]/i.test(ticketData.description)) {
     const match = ticketData.description.match(/\[Preferred:\s*([^\]]+)\]/i);
-    preferredSlotFormatted = match ? match[1] : null;
+    const rawMatch = match ? match[1] : null;
+    if (rawMatch && rawMatch.includes('•')) {
+      const parts = rawMatch.split('•').map((p) => p.trim());
+      preferredSlotFormatted = `${parts[0]} • ${formatSlotTimeString(parts[1])}`;
+    } else {
+      preferredSlotFormatted = rawMatch;
+    }
   }
 
   if (!preferredSlotFormatted || preferredSlotFormatted === 'N/A') {
@@ -424,15 +556,107 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
     ]);
   };
 
-  const handleRescheduleConfirm = async (slot: (typeof RESCHEDULE_OPTIONS)[0]) => {
+  const upcomingRescheduleDates = useMemo(() => {
+    const list = [];
+    const today = new Date();
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const dayName = i === 1 ? 'Tomorrow' : i === 2 ? 'Day After' : d.toLocaleDateString('en-US', { weekday: 'short' });
+      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      list.push({ offset: i, dateStr, dayName, monthDay, fullDate: d });
+    }
+    return list;
+  }, []);
+
+  const selectedRescheduleDateObj = useMemo(() => {
+    return upcomingRescheduleDates.find((d) => d.offset === rescheduleDateOffset) || upcomingRescheduleDates[0];
+  }, [upcomingRescheduleDates, rescheduleDateOffset]);
+
+  useEffect(() => {
+    if (!showRescheduleModal) return;
+    const mechanicId = (primaryJob as any)?.mechanicId || (primaryJob as any)?.mechanic?.id;
+
+    const defaultFallbackSlots = [
+      { label: '09:00 AM - 10:00 AM', isAvailable: true },
+      { label: '10:00 AM - 11:00 AM', isAvailable: true },
+      { label: '11:00 AM - 12:00 PM', isAvailable: true },
+      { label: '12:00 PM - 01:00 PM', isAvailable: true },
+      { label: '01:00 PM - 02:00 PM', isAvailable: true },
+      { label: '02:00 PM - 03:00 PM', isAvailable: true },
+      { label: '03:00 PM - 04:00 PM', isAvailable: true },
+      { label: '04:00 PM - 05:00 PM', isAvailable: true },
+      { label: '05:00 PM - 06:00 PM', isAvailable: true },
+      { label: '06:00 PM - 07:00 PM', isAvailable: true },
+    ];
+
+    if (mechanicId && selectedRescheduleDateObj?.dateStr) {
+      setFetchingDynamicSlots(true);
+      bookingApi.getMechanicPublicSlots(mechanicId, selectedRescheduleDateObj.dateStr)
+        .then((res) => {
+          if (res?.success && res?.data?.slots && Array.isArray(res.data.slots) && res.data.slots.length > 0) {
+            const mappedSlots = res.data.slots
+              .filter((s: any) => s.isActive !== false)
+              .map((s: any) => ({
+                label: s.label,
+                isAvailable: s.isAvailable !== false,
+                reason: s.reason || (s.isAvailable === false ? 'Already Booked' : undefined),
+              }));
+            if (mappedSlots.length > 0) {
+              setDynamicSlotsList(mappedSlots);
+              const firstAvailable = mappedSlots.find((s: any) => s.isAvailable);
+              if (firstAvailable) {
+                setRescheduleSlot(firstAvailable.label);
+              }
+              return;
+            }
+          }
+          setDynamicSlotsList(defaultFallbackSlots);
+        })
+        .catch(() => {
+          setDynamicSlotsList(defaultFallbackSlots);
+        })
+        .finally(() => setFetchingDynamicSlots(false));
+    } else {
+      setDynamicSlotsList(defaultFallbackSlots);
+    }
+  }, [showRescheduleModal, rescheduleDateOffset, selectedRescheduleDateObj, primaryJob]);
+
+  const handleRescheduleConfirmDynamic = async () => {
+    if (!selectedRescheduleDateObj) return;
     setShowRescheduleModal(false);
     setRescheduling(true);
     try {
-      const newScheduledIso = slot.getIso();
-      const res = await bookingApi.rescheduleBooking(ticketId, newScheduledIso);
+      const d = new Date(selectedRescheduleDateObj.fullDate);
+      let hour = 9;
+      const match = rescheduleSlot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const ampm = match[3].toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        hour = h;
+      }
+      d.setHours(hour, 0, 0, 0);
+      const scheduledIso = d.toISOString();
+
+      const res = await bookingApi.rescheduleBooking(ticketId, scheduledIso, rescheduleSlot);
       if (res?.success || res?.data) {
-        setTicketData((prev) => ({ ...prev, preferredSlot: newScheduledIso }));
-        Alert.alert('Appointment Rescheduled! 📅', `Appointment moved to ${slot.label}.`);
+        setTicketData((prev) => ({
+          ...prev,
+          preferredVisitDate: scheduledIso,
+          preferredTimeSlot: rescheduleSlot,
+          preferredSlot: `${selectedRescheduleDateObj.dateStr} • ${rescheduleSlot}`,
+        }));
+        Alert.alert(
+          'Appointment Rescheduled! 📅',
+          `Appointment moved to ${selectedRescheduleDateObj.dayName} (${selectedRescheduleDateObj.monthDay}) at ${rescheduleSlot}.`
+        );
+        fetchTicketDetails();
       } else {
         Alert.alert('Reschedule Failed', res?.error?.message || 'Failed to reschedule appointment');
       }
@@ -469,47 +693,47 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
 
   const steps = isCancelled
     ? [
-        {
-          title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
-          time: createdAtFormatted,
-          isCompleted: true,
-        },
-        {
-          title: 'Service Request Cancelled',
-          time: ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Cancelled',
-          isCompleted: false,
-          isActive: false,
-          isCancelled: true,
-        },
-      ]
+      {
+        title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
+        time: createdAtFormatted,
+        isCompleted: true,
+      },
+      {
+        title: 'Service Request Cancelled',
+        time: ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Cancelled',
+        isCompleted: false,
+        isActive: false,
+        isCancelled: true,
+      },
+    ]
     : [
-        {
-          title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
-          time: createdAtFormatted,
-          isCompleted: true,
-        },
-        {
-          title: mechanicName
-            ? `Technician Assigned (${mechanicName})`
-            : shopkeeper?.shopName
+      {
+        title: type === 'INSTALLATION' ? 'Installation Requested' : 'Ticket Created',
+        time: createdAtFormatted,
+        isCompleted: true,
+      },
+      {
+        title: mechanicName
+          ? `Technician Assigned (${mechanicName})`
+          : shopkeeper?.shopName
             ? `Service Partner: ${shopkeeper.shopName}`
             : 'Service Engineer Assignment',
-          time: mechanicName ? (mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned' : 'Confirmed') : isResolved ? 'Completed' : 'Pending',
-          isCompleted: Boolean(mechanicName) || isResolved,
-          isActive: isPending && !mechanicName,
-        },
-        {
-          title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Service',
-          time: visitsList.length > 0 ? formatStandardDate((visitsList[0] as any).createdAt || (visitsList[0] as any).visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isResolved ? 'Completed' : '-'),
-          isCompleted: visitsList.length > 0 || isResolved,
-          isActive: status === 'IN_PROGRESS',
-        },
-        {
-          title: type === 'INSTALLATION' ? 'Installation Completed & Verified' : 'Service Completed & Resolved',
-          time: isResolved ? (ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Completed') : '-',
-          isCompleted: isResolved,
-        },
-      ];
+        time: mechanicName ? (mechanicJobStatus === 'PENDING_ACCEPTANCE' ? 'Assigned' : 'Confirmed') : isResolved ? 'Completed' : 'Pending',
+        isCompleted: Boolean(mechanicName) || isResolved,
+        isActive: isPending && !mechanicName,
+      },
+      {
+        title: visitsList.length > 0 ? 'Technician Visited Site' : 'Site Inspection & Service',
+        time: visitsList.length > 0 ? formatStandardDate((visitsList[0] as any).createdAt || (visitsList[0] as any).visitDate) : (status === 'IN_PROGRESS' ? 'Active' : isResolved ? 'Completed' : '-'),
+        isCompleted: visitsList.length > 0 || isResolved,
+        isActive: status === 'IN_PROGRESS',
+      },
+      {
+        title: type === 'INSTALLATION' ? 'Installation Completed & Verified' : 'Service Completed & Resolved',
+        time: isResolved ? (ticketData?.updatedAt ? formatStandardDate(ticketData.updatedAt) : 'Completed') : '-',
+        isCompleted: isResolved,
+      },
+    ];
 
   return (
     <ScreenWrapper style={styles.container}>
@@ -741,8 +965,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                       {isCompletionOtpVerified
                         ? 'Job completed & signed off successfully'
                         : status === 'IN_PROGRESS'
-                        ? 'Share ONLY after technician finishes work & you test appliance'
-                        : 'Keep ready. Required once technician completes repairs'}
+                          ? 'Share ONLY after technician finishes work & you test appliance'
+                          : 'Keep ready. Required once technician completes repairs'}
                     </AppText>
                   </View>
                   <Badge
@@ -750,15 +974,15 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                       isCompletionOtpVerified
                         ? 'COMPLETED ✓'
                         : status === 'IN_PROGRESS'
-                        ? 'ACTIVE • SHARE AFTER WORK'
-                        : 'PENDING START'
+                          ? 'ACTIVE • SHARE AFTER WORK'
+                          : 'PENDING START'
                     }
                     variant={
                       isCompletionOtpVerified
                         ? 'success'
                         : status === 'IN_PROGRESS'
-                        ? 'warning'
-                        : 'neutral'
+                          ? 'warning'
+                          : 'neutral'
                     }
                   />
                 </View>
@@ -769,8 +993,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                       isCompletionOtpVerified
                         ? styles.otpCodeBoxVerified
                         : status === 'IN_PROGRESS'
-                        ? styles.otpCodeBoxWarning
-                        : styles.otpCodeBoxNeutral
+                          ? styles.otpCodeBoxWarning
+                          : styles.otpCodeBoxNeutral
                     }
                   >
                     <AppText
@@ -779,8 +1003,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                         isCompletionOtpVerified
                           ? styles.otpCodeTextVerified
                           : status === 'IN_PROGRESS'
-                          ? styles.otpCodeTextWarning
-                          : styles.otpCodeTextNeutral
+                            ? styles.otpCodeTextWarning
+                            : styles.otpCodeTextNeutral
                       }
                     >
                       {completionOtpCode.split('').join('  ')}
@@ -1067,8 +1291,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                     {isWarranty
                       ? '₹0.00'
                       : baseLaborCharge !== null
-                      ? `₹${baseLaborCharge.toFixed(2)}`
-                      : 'Quote on Inspection'}
+                        ? `₹${baseLaborCharge.toFixed(2)}`
+                        : 'Quote on Inspection'}
                   </AppText>
                 </View>
 
@@ -1113,8 +1337,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                     {isWarranty
                       ? '₹0.00'
                       : baseLaborCharge !== null
-                      ? `₹${baseLaborCharge.toFixed(2)}`
-                      : 'Inspection Quote'}
+                        ? `₹${baseLaborCharge.toFixed(2)}`
+                        : 'Inspection Quote'}
                   </AppText>
                 </View>
 
@@ -1259,8 +1483,8 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
                     {isWarranty
                       ? '₹0.00'
                       : baseLaborCharge !== null
-                      ? `₹${baseLaborCharge.toFixed(2)}`
-                      : '₹0.00'}
+                        ? `₹${baseLaborCharge.toFixed(2)}`
+                        : '₹0.00'}
                   </AppText>
                 </View>
 
@@ -1414,764 +1638,139 @@ export const ComplaintDetailScreen = ({ route, navigation }: any) => {
         </ScrollView>
       )}
 
-      {/* Reschedule Modal */}
+      {/* Dynamic Reschedule Modal */}
       <Modal visible={showRescheduleModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <AppText variant="headingMd" color="textPrimary">
-                Select New Appointment Slot
-              </AppText>
+              <View>
+                <AppText variant="headingMd" color="textPrimary">
+                  Reschedule Appointment
+                </AppText>
+                <AppText variant="caption" color="textSecondary">
+                  Select preferred date and 1-hour time slot
+                </AppText>
+              </View>
               <TouchableOpacity onPress={() => setShowRescheduleModal(false)}>
                 <AppIcon name="close" size="sm" color={colors.text.primary} />
               </TouchableOpacity>
             </View>
 
-            {RESCHEDULE_OPTIONS.map((slot, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.modalSlotRow}
-                activeOpacity={0.7}
-                onPress={() => handleRescheduleConfirm(slot)}
-              >
-                <AppIcon name="calendar-outline" size="sm" color={colors.primary.main} />
-                <AppText variant="bodyMd" color="textPrimary" style={styles.modalSlotText}>
-                  {slot.label}
+            {/* Step 1: Select Date */}
+            <AppText variant="labelSm" color="textSecondary" style={styles.rescheduleSectionTitle}>
+              1. SELECT PREFERRED DATE
+            </AppText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScrollWrap}>
+              {upcomingRescheduleDates.map((item) => {
+                const isSelected = item.offset === rescheduleDateOffset;
+                return (
+                  <TouchableOpacity
+                    key={item.offset}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.dateChip,
+                      isSelected && { backgroundColor: colors.primary.main, borderColor: colors.primary.main },
+                    ]}
+                    onPress={() => setRescheduleDateOffset(item.offset)}
+                  >
+                    <AppText
+                      variant="caption"
+                      style={[styles.dateChipSub, isSelected && { color: '#FFFFFF' }]}
+                    >
+                      {item.dayName}
+                    </AppText>
+                    <AppText
+                      variant="labelMd"
+                      style={[styles.dateChipMain, isSelected && { color: '#FFFFFF' }]}
+                    >
+                      {item.monthDay}
+                    </AppText>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Step 2: Select 1-Hour Time Window */}
+            <AppText variant="labelSm" color="textSecondary" style={styles.rescheduleSectionTitle}>
+              2. SELECT TIME SLOT
+            </AppText>
+            {fetchingDynamicSlots ? (
+              <ActivityIndicator size="small" color={colors.primary.main} style={{ marginVertical: 16 }} />
+            ) : (
+              <View style={styles.slotsGridWrap}>
+                {dynamicSlotsList.map((item, sIdx) => {
+                  const label = typeof item === 'string' ? item : item.label;
+                  const isAvailable = typeof item === 'string' ? true : item.isAvailable;
+                  const reason = typeof item === 'object' ? item.reason : undefined;
+                  const isSelected = label === rescheduleSlot && isAvailable;
+
+                  return (
+                    <TouchableOpacity
+                      key={sIdx}
+                      activeOpacity={isAvailable ? 0.8 : 1}
+                      disabled={!isAvailable}
+                      style={[
+                        styles.slotChipGrid,
+                        isSelected && { backgroundColor: colors.primary.main, borderColor: colors.primary.main },
+                        !isAvailable && {
+                          backgroundColor: colors.neutral[100],
+                          borderColor: colors.neutral[200],
+                          opacity: 0.5,
+                        },
+                      ]}
+                      onPress={() => isAvailable && setRescheduleSlot(label)}
+                    >
+                      <AppIcon
+                        name={!isAvailable ? 'lock-closed-outline' : 'time-outline'}
+                        size="xs"
+                        color={isSelected ? '#FFFFFF' : !isAvailable ? colors.text.muted : colors.primary.main}
+                      />
+                      <AppText
+                        variant="caption"
+                        style={[
+                          styles.slotChipTextGrid,
+                          isSelected && { color: '#FFFFFF' },
+                          !isAvailable && { color: colors.text.muted, textDecorationLine: 'line-through' },
+                        ]}
+                      >
+                        {label}
+                      </AppText>
+                      {!isAvailable && (
+                        <AppText variant="caption" style={{ fontSize: 9, fontWeight: '700', color: colors.status.danger }}>
+                          ({reason || 'Booked'})
+                        </AppText>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Selected Summary Card */}
+            <View style={styles.rescheduleSummaryBox}>
+              <AppIcon name="calendar-outline" size="sm" color={colors.primary.main} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="caption" color="textSecondary">
+                  NEW APPOINTMENT SUMMARY
                 </AppText>
-                <AppIcon name="chevron-forward" size="xs" color={colors.text.muted} />
-              </TouchableOpacity>
-            ))}
+                <AppText variant="labelMd" color="textPrimary" style={styles.boldText}>
+                  {selectedRescheduleDateObj?.dayName} ({selectedRescheduleDateObj?.monthDay}) • {rescheduleSlot}
+                </AppText>
+              </View>
+            </View>
+
+            {/* Confirm Button */}
+            <Button
+              title={rescheduling ? 'Rescheduling...' : 'Confirm Reschedule'}
+              variant="primary"
+              loading={rescheduling}
+              disabled={rescheduling}
+              onPress={handleRescheduleConfirmDynamic}
+              style={{ width: '100%', marginTop: spacing.md }}
+            />
           </View>
         </View>
       </Modal>
     </ScreenWrapper>
   );
-};
-
-const makeStyles = (colors: any, bottomInset: number) => {
-  const safeBottom = bottomInset > 0 ? bottomInset : 16;
-  return StyleSheet.create({
-    container: {
-      paddingHorizontal: spacing.lg,
-      flex: 1,
-    },
-    errorBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.status.dangerBg,
-      padding: spacing.sm + 2,
-      borderRadius: radius.sm,
-      marginBottom: spacing.sm,
-      gap: spacing.xs,
-    },
-    errorText: {
-      flex: 1,
-      color: colors.status.danger,
-    },
-    retryText: {
-      color: colors.status.danger,
-      fontWeight: '700',
-    },
-    loaderCenter: {
-      paddingVertical: spacing.xxl,
-      alignItems: 'center',
-    },
-    loadingText: {
-      color: colors.text.muted,
-      marginTop: spacing.sm,
-    },
-    scrollContent: {
-      paddingTop: 0,
-      paddingBottom: safeBottom + 40,
-    },
-    heroCard: {
-      marginBottom: spacing.md,
-    },
-    heroHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: spacing.xs,
-    },
-    headerLeftGroup: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.xs,
-    },
-    typeBadgeWrapper: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.neutral[100],
-      paddingHorizontal: spacing.xs + 2,
-      paddingVertical: 2,
-      borderRadius: radius.sm,
-      gap: 3,
-    },
-    typeBadgeText: {
-      fontSize: 10,
-      fontWeight: '600',
-    },
-    titleText: {
-      marginTop: 2,
-    },
-    pillRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.xs,
-      marginTop: spacing.xs + 2,
-    },
-    appliancePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.neutral[100],
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-      borderRadius: radius.pill,
-    },
-    issuePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.status.warningBg,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-      borderRadius: radius.pill,
-    },
-    servicePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.primary.light,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 3,
-      borderRadius: radius.pill,
-    },
-    pillText: {
-      fontWeight: '600',
-      fontSize: 11,
-    },
-    warningPillText: {
-      fontWeight: '600',
-      fontSize: 11,
-      color: colors.status.warning,
-    },
-    divider: {
-      height: 1,
-      backgroundColor: colors.border.light,
-      marginVertical: spacing.sm + 2,
-    },
-    infoRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      marginVertical: 4,
-      gap: spacing.sm,
-    },
-    infoContent: {
-      flex: 1,
-    },
-    descriptionText: {
-      marginTop: 2,
-      lineHeight: 20,
-    },
-    warrantyRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: spacing.sm,
-      paddingTop: spacing.xs + 2,
-      borderTopWidth: 1,
-      borderTopColor: colors.border.light,
-      gap: spacing.xs,
-    },
-    warrantyCoveredText: {
-      flex: 1,
-      color: colors.category.emeraldIcon,
-    },
-    warrantyNonCoveredText: {
-      flex: 1,
-      color: colors.text.muted,
-    },
-    slotTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.xs,
-    },
-    dualOtpCard: {
-      backgroundColor: colors.background.paper,
-      borderColor: colors.border.light || colors.neutral[200],
-      borderWidth: 1,
-      marginBottom: spacing.md,
-      borderRadius: radius.lg,
-    },
-    dualOtpHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      marginBottom: spacing.sm,
-    },
-    dualOtpHeaderThumb: {
-      width: 38,
-      height: 38,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    dualOtpHeaderContent: {
-      flex: 1,
-    },
-    otpStepCard: {
-      marginTop: spacing.xs,
-    },
-    otpStepTopRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: spacing.sm,
-      marginBottom: spacing.xs,
-    },
-    otpStepLabelGroup: {
-      flex: 1,
-    },
-    otpStepDesc: {
-      marginTop: 2,
-      lineHeight: 16,
-    },
-    otpCodeBoxActive: {
-      backgroundColor: colors.primary.light,
-      borderColor: colors.primary.main,
-      borderWidth: 1.5,
-      borderRadius: radius.md,
-      paddingVertical: spacing.xs + 2,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 6,
-      position: 'relative',
-    },
-    otpCodeBoxWarning: {
-      backgroundColor: colors.status.warningBg,
-      borderColor: colors.status.warning,
-      borderWidth: 1.5,
-      borderRadius: radius.md,
-      paddingVertical: spacing.xs + 2,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 6,
-      position: 'relative',
-    },
-    otpCodeBoxVerified: {
-      backgroundColor: colors.status.successBg,
-      borderColor: colors.status.success,
-      borderWidth: 1,
-      borderRadius: radius.md,
-      paddingVertical: spacing.xs + 2,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 6,
-      position: 'relative',
-    },
-    otpCodeBoxNeutral: {
-      backgroundColor: colors.neutral[100],
-      borderColor: colors.neutral[300],
-      borderWidth: 1,
-      borderRadius: radius.md,
-      paddingVertical: spacing.xs + 2,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 6,
-      position: 'relative',
-    },
-    otpCodeTextPrimary: {
-      color: colors.primary.main,
-      fontWeight: '800',
-      letterSpacing: 4,
-    },
-    otpCodeTextWarning: {
-      color: colors.status.warning,
-      fontWeight: '800',
-      letterSpacing: 4,
-    },
-    otpCodeTextVerified: {
-      color: colors.status.success,
-      fontWeight: '700',
-      letterSpacing: 4,
-    },
-    otpCodeTextNeutral: {
-      color: colors.text.secondary,
-      fontWeight: '700',
-      letterSpacing: 4,
-    },
-    otpVerifiedIndicator: {
-      position: 'absolute',
-      right: 12,
-    },
-    dualOtpDivider: {
-      height: 1,
-      backgroundColor: colors.border.light || colors.neutral[200],
-      marginVertical: spacing.sm + 2,
-    },
-    dualOtpSecurityBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.neutral[100],
-      borderRadius: radius.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 6,
-      marginTop: spacing.sm + 2,
-    },
-    securityBarText: {
-      flex: 1,
-      fontSize: 11,
-      lineHeight: 14,
-    },
-    sectionTitle: {
-      marginBottom: spacing.xs + 2,
-      marginTop: spacing.xs,
-    },
-    applianceCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    applianceRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.sm,
-    },
-    applianceIconThumb: {
-      width: 40,
-      height: 40,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      marginTop: 2,
-    },
-    applianceInfo: {
-      flex: 1,
-      minWidth: 0,
-    },
-    applianceMetaRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 4,
-      marginTop: 2,
-    },
-    applianceWarrantyChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      marginTop: 6,
-    },
-    technicianCard: {
-      marginBottom: spacing.sm,
-      overflow: 'hidden',
-    },
-    techRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm + 2,
-    },
-    techAvatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    pendingTechAvatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.neutral[100],
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    techInfo: {
-      flex: 1,
-      minWidth: 0,
-    },
-    techHeaderLine: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      gap: spacing.xs,
-    },
-    techDesignation: {
-      marginTop: 2,
-    },
-    phoneButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      alignSelf: 'flex-start',
-      backgroundColor: colors.primary.light,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 4,
-      borderRadius: radius.pill,
-      marginTop: 4,
-    },
-    dealerPhoneButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.category.indigoBg,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 4,
-      borderRadius: radius.pill,
-    },
-    dealerEmailButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.neutral[100],
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 4,
-      borderRadius: radius.pill,
-      maxWidth: 180,
-    },
-    customerEmailButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.neutral[100],
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 4,
-      borderRadius: radius.pill,
-      maxWidth: 180,
-    },
-    contactActionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: spacing.xs,
-      marginTop: 4,
-    },
-    dealerPhoneText: {
-      fontWeight: '700',
-      color: colors.category.indigoIcon,
-    },
-    contactPhoneText: {
-      fontWeight: '700',
-      color: colors.primary.main,
-    },
-    metaSpacing: {
-      marginTop: 4,
-    },
-    dealerCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    dealerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.sm,
-    },
-    dealerIconThumb: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      backgroundColor: colors.category.indigoBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      marginTop: 2,
-    },
-    dealerInfo: {
-      flex: 1,
-      minWidth: 0,
-    },
-    customerCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    customerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: spacing.sm,
-    },
-    customerIconThumb: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      marginTop: 2,
-    },
-    customerInfo: {
-      flex: 1,
-      minWidth: 0,
-    },
-    addressText: {
-      marginTop: 4,
-      lineHeight: 18,
-    },
-    timelineCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    partsCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    partItemRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: spacing.xs + 2,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border.light,
-      gap: spacing.sm,
-    },
-    partItemLeft: {
-      flex: 1,
-      minWidth: 0,
-    },
-    partItemRight: {
-      alignItems: 'flex-end',
-      flexShrink: 0,
-    },
-    partCostText: {
-      fontWeight: '700',
-      textAlign: 'right',
-    },
-    partsSubtotalRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingTop: spacing.sm,
-      marginTop: spacing.xs,
-      gap: spacing.sm,
-    },
-    partSubtotalRight: {
-      alignItems: 'flex-end',
-      flexShrink: 0,
-    },
-    visitCard: {
-      marginBottom: spacing.sm,
-    },
-    visitHeaderRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    visitTechInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    notesBox: {
-      backgroundColor: colors.neutral[100],
-      padding: spacing.sm,
-      borderRadius: radius.sm,
-      marginTop: spacing.sm,
-    },
-    estimateCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    estimateIconThumb: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    estimateNoticeBox: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.neutral[100],
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs + 2,
-      borderRadius: radius.sm,
-      marginTop: spacing.sm,
-      gap: spacing.xs,
-    },
-    estimateNoticeText: {
-      flex: 1,
-      lineHeight: 16,
-    },
-    invoiceCard: {
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    invoiceHeaderRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    invoiceHeaderLeft: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      minWidth: 0,
-    },
-    invoiceIconThumb: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      backgroundColor: colors.primary.light,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    invoiceTitleWrap: {
-      flex: 1,
-      minWidth: 0,
-    },
-    billRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: spacing.xs,
-      gap: spacing.sm,
-    },
-    billItemLeft: {
-      flex: 1,
-      minWidth: 0,
-    },
-    billLabel: {
-      lineHeight: 18,
-    },
-    billAmount: {
-      fontWeight: '600',
-      textAlign: 'right',
-      flexShrink: 0,
-    },
-    warrantySavingBox: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.category.emeraldBg || '#DCFCE7',
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs + 2,
-      borderRadius: radius.sm,
-      marginVertical: spacing.xs,
-      gap: spacing.xs,
-    },
-    warrantySavingText: {
-      color: colors.category.emeraldIcon || '#15803D',
-      fontWeight: '700',
-      flex: 1,
-      fontSize: 11,
-    },
-    totalBillRow: {
-      marginTop: 0,
-      paddingTop: 0,
-    },
-    totalAmountText: {
-      fontWeight: '800',
-      textAlign: 'right',
-      flexShrink: 0,
-    },
-    reviewCard: {
-      marginBottom: spacing.md,
-      backgroundColor: colors.background.paper,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border.light,
-    },
-    reviewedBox: {
-      gap: spacing.xs,
-    },
-    reviewHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    reviewStarGroup: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    feedbackQuote: {
-      fontStyle: 'italic',
-      marginTop: spacing.xs,
-      color: colors.text.secondary,
-    },
-    unreviewedBox: {
-      gap: spacing.sm,
-    },
-    ratingPromptRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    ratingPromptIconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.category.orangeBg || '#FEF3C7',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    ratingPromptTextWrap: {
-      flex: 1,
-    },
-    reviewCtaBtn: {
-      marginTop: spacing.xs,
-    },
-    actionBtnSection: {
-      marginTop: spacing.sm,
-      gap: spacing.sm,
-    },
-    btnRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    flexBtn: {
-      flex: 1,
-    },
-    fullWidthBtn: {
-      width: '100%',
-    },
-    boldText: {
-      fontWeight: '700',
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
-    },
-    modalContent: {
-      backgroundColor: colors.background.paper,
-      borderTopLeftRadius: radius.xl,
-      borderTopRightRadius: radius.xl,
-      padding: spacing.lg,
-      paddingBottom: safeBottom + 16,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: spacing.md,
-    },
-    modalSlotRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: spacing.sm + 2,
-      paddingHorizontal: spacing.sm,
-      borderRadius: radius.md,
-      backgroundColor: colors.neutral[100],
-      marginBottom: spacing.xs,
-      gap: spacing.sm,
-    },
-    modalSlotText: {
-      flex: 1,
-      fontWeight: '600',
-    },
-  });
 };

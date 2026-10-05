@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthNavigator } from './AuthNavigator';
 import { MainTabNavigator } from './MainTabNavigator';
@@ -25,6 +25,14 @@ import { RootStackParamList } from './types/navigation.types';
 import { getAuthToken } from '@infrastructure/api/axiosInstance';
 import { useNotificationSetup } from '@core/hooks/useNotificationSetup';
 
+export const navigationRef = createNavigationContainerRef<any>();
+
+export function navigateGlobal(name: string, params?: any) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name, params);
+  }
+}
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator = () => {
@@ -33,7 +41,7 @@ export const AppNavigator = () => {
   const [initialRoute] = useState<'Auth' | 'MainTab'>('Auth');
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Auth" component={AuthNavigator} />
         <Stack.Screen name="MainTab" component={MainTabNavigator} />

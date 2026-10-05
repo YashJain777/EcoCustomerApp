@@ -19,6 +19,7 @@ import {
   AuthorizationStatus,
 } from '@react-native-firebase/messaging';
 import { axiosInstance, getAuthToken } from '@infrastructure/api/axiosInstance';
+import { navigateGlobal } from '../../navigation/AppNavigator';
 
 export const useNotificationSetup = () => {
   useEffect(() => {
@@ -76,11 +77,13 @@ export const useNotificationSetup = () => {
         const initialNotification = await getInitialNotification(messaging);
         if (initialNotification) {
           console.log('[FCM] App opened from quit state via notification:', initialNotification);
+          navigateGlobal('MainTab', { screen: 'BookingsScreenTab' });
         }
 
         // 6. Handle Background Notification Tap
         unsubscribeOpenedApp = onNotificationOpenedApp(messaging, (remoteMessage: any) => {
           console.log('[FCM] Notification tapped in background:', remoteMessage);
+          navigateGlobal('MainTab', { screen: 'BookingsScreenTab' });
         });
 
         // 7. Handle Foreground Message (Active App state when Customer is using app)
@@ -91,11 +94,13 @@ export const useNotificationSetup = () => {
           const type = remoteMessage.data?.type || remoteMessage.data?.notificationType || 'GENERAL';
 
           if (title || body) {
-            // Ignore instant creation push alerts in foreground to prevent overlapping with booking screen's local confirmation popup
             const isBookingCreatedPush =
               title.includes('Booking Request Created') ||
+              title.includes('Complaint Created') ||
               body.includes('has been created successfully') ||
-              type === 'BOOKING_CREATED';
+              body.includes('successfully registered') ||
+              type === 'BOOKING_CREATED' ||
+              type === 'COMPLAINT_CREATED';
 
             if (isBookingCreatedPush) {
               console.log('[FCM] Suppressed duplicate foreground creation push popup');

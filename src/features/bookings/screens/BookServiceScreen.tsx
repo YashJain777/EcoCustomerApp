@@ -707,38 +707,23 @@ export const BookServiceScreen = ({ navigation, route }: any) => {
       }
 
       if (res?.success || res?.data) {
+        const detailMsg = isUnderWarranty
+          ? `Your warranty claim visit has been scheduled for ${selectedDate.toDateString()} at ${chosenSlot.label}. Fee is ₹0.`
+          : bookingMode === 'FREELANCER'
+          ? `Direct freelancer booking request submitted for ${selectedDate.toDateString()} at ${chosenSlot.label}. Awaiting freelancer acceptance.`
+          : `Your service visit is scheduled for ${selectedDate.toDateString()} at ${chosenSlot.label}.`;
+
         Alert.alert(
-          'Booking Request Created',
-          `Your booking request has been created successfully.`,
+          'Complaint Created! 🛠️',
+          `Your booking request has been created successfully.\n\n${detailMsg}`,
           [
             {
               text: 'OK',
               onPress: () => {
-                Alert.alert(
-                  'Service Scheduled! 🛠️',
-                  isUnderWarranty
-                    ? `Your warranty claim visit has been scheduled for ${selectedDate.toDateString()} at ${chosenSlot.label}. Fee is ₹0.`
-                    : bookingMode === 'FREELANCER'
-                    ? `Direct freelancer booking request submitted for ${selectedDate.toDateString()} at ${chosenSlot.label}. Awaiting freelancer acceptance.`
-                    : `Your service visit is scheduled for ${selectedDate.toDateString()} at ${chosenSlot.label}.`,
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        navigation.reset({
-                          index: 0,
-                          routes: [{ name: 'MainTab', params: { screen: 'HomeScreenTab' } }],
-                        });
-                      },
-                    },
-                    {
-                      text: 'View My Services',
-                      onPress: () => {
-                        navigation.navigate('MyComplaintsScreen');
-                      },
-                    },
-                  ]
-                );
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'MainTab', params: { screen: 'BookingsScreenTab' } }],
+                });
               },
             },
           ]
